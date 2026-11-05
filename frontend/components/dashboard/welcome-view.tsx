@@ -25,6 +25,7 @@ interface WelcomeViewProps {
   docs: DocumentItem[]
   onOpenUpload: () => void
   onPreviewDoc: (doc: DocumentItem) => void
+  query?: string
 }
 
 export function WelcomeView({
@@ -32,6 +33,7 @@ export function WelcomeView({
   docs,
   onOpenUpload,
   onPreviewDoc,
+  query = '',
 }: WelcomeViewProps) {
   const [quoteIndex, setQuoteIndex] = useState(0)
 
@@ -345,71 +347,77 @@ export function WelcomeView({
       </motion.div>
 
       {/* Small Example Question Cards with Attractive Icons and Hover Animations */}
-      <motion.div
-        initial={{ opacity: 0, y: 15 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.3 }}
-        className="mt-8 w-full max-w-3xl"
-      >
-        <div className="mb-3 flex items-center justify-between px-1">
-          <span className="text-xs font-bold uppercase tracking-[0.16em] text-[#9b94b0] flex items-center gap-1.5">
-            <Compass className="size-3.5 text-[#7763d9]" /> Suggested Study Starters
-          </span>
-          <span className="text-[11px] font-medium text-[#aaa4bc]">
-            Click to load prompt
-          </span>
-        </div>
+      <AnimatePresence>
+        {!query.trim() && (
+          <motion.div
+            key="suggested-study-starters"
+            initial={{ opacity: 0, height: 0, y: -10 }}
+            animate={{ opacity: 1, height: 'auto', y: 0 }}
+            exit={{ opacity: 0, height: 0, y: -10 }}
+            transition={{ duration: 0.28, ease: 'easeInOut' }}
+            className="mt-8 w-full max-w-3xl overflow-hidden"
+          >
+            <div className="mb-3 flex items-center justify-between px-1">
+              <span className="text-xs font-bold uppercase tracking-[0.16em] text-[#9b94b0] flex items-center gap-1.5">
+                <Compass className="size-3.5 text-[#7763d9]" /> Suggested Study Starters
+              </span>
+              <span className="text-[11px] font-medium text-[#aaa4bc]">
+                Click to load prompt
+              </span>
+            </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          {STUDY_STARTER_PROMPTS.map((item) => {
-            const Icon =
-              item.icon === 'Layers'
-                ? Layers
-                : item.icon === 'Database'
-                ? Database
-                : item.icon === 'Cpu'
-                ? Cpu
-                : GraduationCap
+            <div className="grid gap-3 sm:grid-cols-2 pb-1">
+              {STUDY_STARTER_PROMPTS.map((item) => {
+                const Icon =
+                  item.icon === 'Layers'
+                    ? Layers
+                    : item.icon === 'Database'
+                    ? Database
+                    : item.icon === 'Cpu'
+                    ? Cpu
+                    : GraduationCap
 
-            const colorClasses =
-              item.color === 'violet'
-                ? 'bg-[#eee9ff] text-[#7763d9] group-hover:bg-[#7763d9] group-hover:text-white'
-                : item.color === 'mint'
-                ? 'bg-[#dff7ee] text-[#2d9b75] group-hover:bg-[#2d9b75] group-hover:text-white'
-                : item.color === 'coral'
-                ? 'bg-[#ffe5df] text-[#e26d5a] group-hover:bg-[#e26d5a] group-hover:text-white'
-                : 'bg-[#fff1c7] text-[#c88716] group-hover:bg-[#c88716] group-hover:text-white'
+                const colorClasses =
+                  item.color === 'violet'
+                    ? 'bg-[#eee9ff] text-[#7763d9] group-hover:bg-[#7763d9] group-hover:text-white'
+                    : item.color === 'mint'
+                    ? 'bg-[#dff7ee] text-[#2d9b75] group-hover:bg-[#2d9b75] group-hover:text-white'
+                    : item.color === 'coral'
+                    ? 'bg-[#ffe5df] text-[#e26d5a] group-hover:bg-[#e26d5a] group-hover:text-white'
+                    : 'bg-[#fff1c7] text-[#c88716] group-hover:bg-[#c88716] group-hover:text-white'
 
-            return (
-              <motion.button
-                key={item.title}
-                onClick={() => onSelectPrompt(item.title)}
-                whileHover={{ y: -3, scale: 1.01 }}
-                whileTap={{ scale: 0.98 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                className="group flex items-start gap-3.5 rounded-2xl border border-[#ebe7f4] bg-white p-3.5 text-left shadow-sm transition-all hover:border-[#cfc6f4] hover:shadow-md hover:shadow-[#7763d9]/10"
-              >
-                <div
-                  className={`grid size-10 shrink-0 place-items-center rounded-xl transition-colors duration-200 ${colorClasses}`}
-                >
-                  <Icon className="size-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="inline-block rounded-md bg-[#f6f3fc] px-2 py-0.5 text-[10px] font-semibold text-[#8172c8]">
-                    {item.tag}
-                  </span>
-                  <p className="mt-1 text-xs font-semibold leading-snug text-[#302b4b] transition group-hover:text-[#6555be]">
-                    {item.title}
-                  </p>
-                </div>
-                <div className="grid size-6 place-items-center rounded-full text-[#cfc9dc] opacity-0 transition group-hover:opacity-100 group-hover:text-[#7763d9]">
-                  <ArrowRight className="size-3.5" />
-                </div>
-              </motion.button>
-            )
-          })}
-        </div>
-      </motion.div>
+                return (
+                  <motion.button
+                    key={item.title}
+                    onClick={() => onSelectPrompt(item.title)}
+                    whileHover={{ y: -3, scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                    className="group flex items-start gap-3.5 rounded-2xl border border-[#ebe7f4] bg-white p-3.5 text-left shadow-sm transition-all hover:border-[#cfc6f4] hover:shadow-md hover:shadow-[#7763d9]/10"
+                  >
+                    <div
+                      className={`grid size-10 shrink-0 place-items-center rounded-xl transition-colors duration-200 ${colorClasses}`}
+                    >
+                      <Icon className="size-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="inline-block rounded-md bg-[#f6f3fc] px-2 py-0.5 text-[10px] font-semibold text-[#8172c8]">
+                        {item.tag}
+                      </span>
+                      <p className="mt-1 text-xs font-semibold leading-snug text-[#302b4b] transition group-hover:text-[#6555be]">
+                        {item.title}
+                      </p>
+                    </div>
+                    <div className="grid size-6 place-items-center rounded-full text-[#cfc9dc] opacity-0 transition group-hover:opacity-100 group-hover:text-[#7763d9]">
+                      <ArrowRight className="size-3.5" />
+                    </div>
+                  </motion.button>
+                )
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Uploaded Documents Quick Access Shelf */}
       <motion.div

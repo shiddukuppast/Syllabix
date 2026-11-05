@@ -1,11 +1,11 @@
 # Syllabix Backend
 
-The backend is a high-performance FastAPI service with MongoDB conversation and document metadata persistence, Qdrant vector storage, Sentence Transformers local embeddings, and an asynchronous Google Gemini LLM adapter.
+The backend is a high-performance FastAPI service with MongoDB conversation and document metadata persistence, Qdrant vector storage, Sentence Transformers local embeddings, and an asynchronous Groq LLM adapter.
 
 ## Architecture
 
-- **LLM Integration**: Google Gemini Developer API via the official modern Python SDK (`google-genai`).
-- **Default Model**: `gemini-3.8-flash` (configurable via `GEMINI_MODEL`).
+- **LLM Integration**: Groq API via the official Python SDK (`groq`).
+- **Default Model**: `openai/gpt-oss-120b` (configurable via `GROQ_MODEL`).
 - **Vector Search**: Qdrant vector database (`qdrant-client`).
 - **Embeddings**: `sentence-transformers/all-MiniLM-L6-v2` (384-dimensional dense vectors, fully preserved).
 - **Document Processing**: PyMuPDF (PDF), python-docx (DOCX), python-pptx (PPTX).
@@ -22,23 +22,22 @@ Copy-Item .env.example .env
 uvicorn app.main:app --reload
 ```
 
-## Gemini API Configuration
+## Groq API Configuration
 
-Set your Gemini credentials in `.env`:
+Set your Groq credentials in `.env`:
 
 ```env
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-3.8-flash
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL=openai/gpt-oss-120b
 ```
 
-Obtain an API key from [Google AI Studio](https://aistudio.google.com/).
+Obtain an API key from [Groq Console](https://console.groq.com/).
 
-### Model Details & Rate Limits (Free Tier)
+### Model Details
 
-- **`gemini-3.8-flash` (Default)**: Google's high-efficiency frontier flash model engineered for long-horizon reasoning, deep document processing, and low latency in academic RAG workflows.
-  - Rate limits: 15 Requests Per Minute (RPM), 1,000,000 Tokens Per Minute (TPM), 1,500 Requests Per Day (RPD).
+- **`openai/gpt-oss-120b` (Default)**: High-performance open-source model hosted on Groq LPU inference engine for ultra-fast response generation in academic RAG workflows.
 
-Rate limits are enforced at the Google Cloud/AI Studio project level. If limits are reached, the service returns HTTP 429 with exponential backoff on transient retries.
+If rate limits or provider-side issues occur, the service handles HTTP 429 and transient 5xx errors with exponential backoff on retries.
 
 ## Answering Modes
 
@@ -51,7 +50,7 @@ Rate limits are enforced at the Google Cloud/AI Studio project level. If limits 
 - `POST /api/documents/upload`: Upload and index course materials (`.pdf`, `.docx`, `.pptx`).
 - `GET /api/documents`: List indexed materials.
 - `DELETE /api/documents/{id}`: Delete an indexed document and its vector points.
-- `POST /api/chat`: Submit academic study questions with context retrieval and Gemini response generation.
+- `POST /api/chat`: Submit academic study questions with context retrieval and Groq response generation.
 - `GET /api/conversations`: List user conversation history.
 - `GET /api/conversations/{id}`: Retrieve a specific conversation with message history.
 - `DELETE /api/conversations/{id}`: Delete a conversation.

@@ -156,11 +156,10 @@ export function Sidebar({
             setActiveTab('chats')
             setIsCollapsed(false)
           }}
-          className={`relative group grid size-10 place-items-center rounded-xl transition ${
-            activeTab === 'chats'
+          className={`relative group grid size-10 place-items-center rounded-xl transition ${activeTab === 'chats'
               ? 'bg-[#f1eeff] text-[#7763d9] font-medium'
               : 'text-[#736c8d] hover:bg-[#f6f2fd] hover:text-[#7763d9]'
-          }`}
+            }`}
           aria-label={`Chats (${conversations.length})`}
         >
           <MessageCircle className="size-4" />
@@ -178,11 +177,10 @@ export function Sidebar({
             setActiveTab('materials')
             setIsCollapsed(false)
           }}
-          className={`relative group grid size-10 place-items-center rounded-xl transition ${
-            activeTab === 'materials'
+          className={`relative group grid size-10 place-items-center rounded-xl transition ${activeTab === 'materials'
               ? 'bg-[#ebfaf3] text-[#2d9b75] font-medium'
               : 'text-[#736c8d] hover:bg-[#ebfaf3] hover:text-[#2d9b75]'
-          }`}
+            }`}
           aria-label={`Notes (${docs.length})`}
         >
           <BookOpen className="size-4" />
@@ -319,9 +317,8 @@ export function Sidebar({
           <div className="grid grid-cols-2 gap-1 rounded-xl bg-[#f5f2fb] p-1">
             <button
               onClick={() => setActiveTab('chats')}
-              className={`relative flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition ${
-                activeTab === 'chats' ? 'text-[#6555be]' : 'text-[#89849e] hover:text-[#282344]'
-              }`}
+              className={`relative flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition ${activeTab === 'chats' ? 'text-[#6555be]' : 'text-[#89849e] hover:text-[#282344]'
+                }`}
             >
               {activeTab === 'chats' && (
                 <motion.div
@@ -338,9 +335,8 @@ export function Sidebar({
 
             <button
               onClick={() => setActiveTab('materials')}
-              className={`relative flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition ${
-                activeTab === 'materials' ? 'text-[#6555be]' : 'text-[#89849e] hover:text-[#282344]'
-              }`}
+              className={`relative flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition ${activeTab === 'materials' ? 'text-[#6555be]' : 'text-[#89849e] hover:text-[#282344]'
+                }`}
             >
               {activeTab === 'materials' && (
                 <motion.div
@@ -375,11 +371,10 @@ export function Sidebar({
                     return (
                       <div
                         key={c.id}
-                        className={`group relative flex items-center justify-between rounded-xl p-2.5 transition-colors cursor-pointer ${
-                          isActive
+                        className={`group relative flex items-center justify-between rounded-xl p-2.5 transition-colors cursor-pointer ${isActive
                             ? 'bg-[#f1eeff] text-[#6555be] font-medium'
                             : 'text-[#5f587b] hover:bg-[#f8f6ff]'
-                        }`}
+                          }`}
                         onClick={() => {
                           onSelectConversation(c.id)
                           setIsMobileOpen(false)
@@ -387,9 +382,8 @@ export function Sidebar({
                       >
                         <div className="flex items-center gap-2.5 min-w-0 flex-1">
                           <MessageCircle
-                            className={`size-3.5 shrink-0 ${
-                              isActive ? 'text-[#7763d9]' : 'text-[#aaa4bc]'
-                            }`}
+                            className={`size-3.5 shrink-0 ${isActive ? 'text-[#7763d9]' : 'text-[#aaa4bc]'
+                              }`}
                           />
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-xs leading-snug">{c.title}</p>
@@ -443,13 +437,12 @@ export function Sidebar({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <span
-                            className={`grid size-7 shrink-0 place-items-center rounded-lg ${
-                              d.color === 'coral'
+                            className={`grid size-7 shrink-0 place-items-center rounded-lg ${d.color === 'coral'
                                 ? 'bg-[#ffe5df] text-[#e26d5a]'
                                 : d.color === 'violet'
-                                ? 'bg-[#eee9ff] text-[#7763d9]'
-                                : 'bg-[#dff7ee] text-[#2d9b75]'
-                            }`}
+                                  ? 'bg-[#eee9ff] text-[#7763d9]'
+                                  : 'bg-[#dff7ee] text-[#2d9b75]'
+                              }`}
                           >
                             <FileText className="size-3.5" />
                           </span>
@@ -465,7 +458,7 @@ export function Sidebar({
 
                         {/* Status / Delete */}
                         <div className="flex items-center gap-1">
-                          {d.status === 'uploading' ? (
+                          {d.status === 'uploading' || d.status === 'indexing' ? (
                             <Loader2 className="size-3.5 animate-spin text-[#7763d9]" />
                           ) : (
                             <button
@@ -482,13 +475,13 @@ export function Sidebar({
                         </div>
                       </div>
 
-                      {/* Animated Upload Status Bar if uploading */}
-                      {d.status === 'uploading' && (
+                      {/* Animated Upload Status Bar if uploading or indexing */}
+                      {(d.status === 'uploading' || d.status === 'indexing') && (
                         <div className="w-full bg-[#f0edf7] rounded-full h-1 overflow-hidden">
                           <motion.div
                             className="bg-[#7763d9] h-full"
                             initial={{ width: '0%' }}
-                            animate={{ width: `${d.uploadProgress || 65}%` }}
+                            animate={{ width: d.status === 'indexing' ? '100%' : `${d.uploadProgress || 65}%` }}
                             transition={{ duration: 0.4 }}
                           />
                         </div>

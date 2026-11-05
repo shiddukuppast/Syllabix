@@ -90,7 +90,7 @@ export function DocumentModal({
                   Document Overview
                 </p>
                 <p className="leading-relaxed">
-                  This document is loaded into your active session. Once backend storage and embedding APIs are connected, full multi-page retrieval will be enabled.
+                  This document is stored and indexed for retrieval in your active session.
                 </p>
                 {doc && (
                   <div className="mt-3 flex gap-2">
@@ -98,7 +98,7 @@ export function DocumentModal({
                       Size: {doc.size}
                     </span>
                     <span className="rounded-md bg-white px-2 py-1 text-[11px] font-semibold text-[#2d9b75] border border-[#e8e2f4]">
-                      Status: {doc.status === 'ready' ? 'Loaded' : 'Processing'}
+                      Status: {doc.status === 'ready' ? 'Indexed' : doc.status === 'failed' ? 'Failed' : 'Processing'}
                     </span>
                   </div>
                 )}
@@ -137,4 +137,3 @@ export function DocumentModal({
     </AnimatePresence>
   )
 }
-

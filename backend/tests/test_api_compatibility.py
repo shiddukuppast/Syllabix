@@ -77,10 +77,10 @@ def test_api_chat_frontend_schema_contract(test_client):
 
 
 def test_api_chat_missing_credentials_error(test_client):
-    """TEST 10: Verify frontend receives clean HTTP 503 on unconfigured Gemini key."""
+    """TEST 10: Verify frontend receives clean HTTP 503 on unconfigured Groq key."""
     mock_rag = MagicMock(spec=RAGService)
     mock_rag.answer = AsyncMock(
-        side_effect=LLMConfigurationError("GEMINI_API_KEY is not configured.")
+        side_effect=LLMConfigurationError("GROQ_API_KEY is not configured.")
     )
     chat.set_rag_service(mock_rag)
 
@@ -90,14 +90,14 @@ def test_api_chat_missing_credentials_error(test_client):
     )
 
     assert response.status_code == 503
-    assert "GEMINI_API_KEY is not configured" in response.json()["detail"]
+    assert "GROQ_API_KEY is not configured" in response.json()["detail"]
 
 
 def test_api_chat_quota_exceeded_error(test_client):
-    """TEST 10: Verify frontend receives clean HTTP 429 on Gemini quota exhaustion."""
+    """TEST 10: Verify frontend receives clean HTTP 429 on Groq quota exhaustion."""
     mock_rag = MagicMock(spec=RAGService)
     mock_rag.answer = AsyncMock(
-        side_effect=LLMQuotaExceededError("Gemini API rate limit or quota exceeded.")
+        side_effect=LLMQuotaExceededError("Groq API rate limit exceeded.")
     )
     chat.set_rag_service(mock_rag)
 
@@ -107,14 +107,14 @@ def test_api_chat_quota_exceeded_error(test_client):
     )
 
     assert response.status_code == 429
-    assert "rate limit or quota exceeded" in response.json()["detail"].lower()
+    assert "rate limit exceeded" in response.json()["detail"].lower()
 
 
 def test_api_chat_timeout_error(test_client):
-    """TEST 10: Verify frontend receives clean HTTP 504 on Gemini timeout."""
+    """TEST 10: Verify frontend receives clean HTTP 504 on Groq timeout."""
     mock_rag = MagicMock(spec=RAGService)
     mock_rag.answer = AsyncMock(
-        side_effect=LLMTimeoutError("Gemini API request timed out after 45s.")
+        side_effect=LLMTimeoutError("Groq API request timed out after 45s.")
     )
     chat.set_rag_service(mock_rag)
 

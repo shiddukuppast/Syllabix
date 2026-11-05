@@ -3,12 +3,14 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles, Brain, Search, BookOpen } from 'lucide-react'
+import { WalkingIllustration } from './walking-illustration'
 
 const THINKING_PHRASES = [
+  'Syllabix is thinking...',
   'Going through your study materials...',
   'Finding the most relevant explanation...',
   'Connecting syllabus topics and exam notes...',
-  'Structuring a clear, grounded answer...',
+  'Preparing your answer...',
 ]
 
 export function ThinkingIndicator() {
@@ -105,6 +107,11 @@ export function ThinkingIndicator() {
               ease: 'easeInOut',
             }}
           />
+        </div>
+
+        {/* Animated Boy and Girl Illustration */}
+        <div className="mt-3.5 pt-2 border-t border-[#f4f0fa] flex flex-col items-center justify-center overflow-hidden rounded-xl">
+          <WalkingIllustration />
         </div>
       </div>
     </motion.div>

@@ -12,6 +12,7 @@ import {
   X,
   UploadCloud,
   Check,
+  Loader2,
 } from 'lucide-react'
 import { StudyMode } from './types'
 
@@ -67,14 +68,16 @@ export function ChatInput({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault()
-      if (query.trim() && !isThinking) {
+      if (isThinking) return
+      if (query.trim() || attachedFiles.length > 0) {
         handleSubmit()
       }
     }
   }
 
   const handleSubmit = () => {
-    if ((query.trim() || attachedFiles.length > 0) && !isThinking) {
+    if (isThinking) return
+    if (query.trim() || attachedFiles.length > 0) {
       onSubmit()
       setAttachedFiles([])
     }
@@ -313,22 +316,36 @@ export function ChatInput({
             {/* Animated Send Button */}
             <div className="flex items-center gap-2">
               <span className="hidden text-[10px] font-medium text-[#b5afc4] md:inline">
-                Enter ↵ to send
+                {isThinking ? 'AI responding...' : 'Enter ↵ to send'}
               </span>
               <motion.button
                 type="button"
-                whileHover={{ scale: 1.06 }}
-                whileTap={{ scale: 0.94 }}
+                whileHover={
+                  !isThinking && (query.trim().length > 0 || attachedFiles.length > 0)
+                    ? { scale: 1.06 }
+                    : undefined
+                }
+                whileTap={
+                  !isThinking && (query.trim().length > 0 || attachedFiles.length > 0)
+                    ? { scale: 0.94 }
+                    : undefined
+                }
                 disabled={(!query.trim() && attachedFiles.length === 0) || isThinking}
                 onClick={handleSubmit}
-                aria-label="Send question"
+                aria-label={isThinking ? 'Syllabix is thinking...' : 'Send question'}
                 className={`relative grid size-9 place-items-center rounded-xl transition-all duration-200 ${
-                  query.trim() || attachedFiles.length > 0
-                    ? 'bg-[#282344] text-white shadow-md shadow-[#282344]/20 hover:bg-[#3c3561]'
+                  isThinking
+                    ? 'bg-[#3c3561] text-white/70 cursor-not-allowed opacity-80 shadow-none'
+                    : query.trim() || attachedFiles.length > 0
+                    ? 'bg-[#282344] text-white shadow-md shadow-[#282344]/20 hover:bg-[#3c3561] cursor-pointer'
                     : 'bg-[#f0edf6] text-[#aaa4bc] cursor-not-allowed'
                 }`}
               >
-                <Send className="size-4" />
+                {isThinking ? (
+                  <Loader2 className="size-4 animate-spin text-[#ee8a7a]" />
+                ) : (
+                  <Send className="size-4" />
+                )}
               </motion.button>
             </div>
           </div>

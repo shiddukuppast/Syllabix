@@ -5,6 +5,10 @@ export interface SourceReference {
   page: string | number
   snippet: string
   matchScore?: number
+  documentId?: string
+  chunkId?: string
+  pageNumber?: number
+  slideNumber?: number
   color?: 'coral' | 'violet' | 'mint'
 }
 
@@ -33,7 +37,7 @@ export interface DocumentItem {
   size: string
   pages: string
   color: 'coral' | 'violet' | 'mint'
-  status: 'ready' | 'uploading' | 'indexing'
+  status: 'ready' | 'failed' | 'uploading' | 'indexing'
   uploadProgress?: number
   type: 'pdf' | 'docx' | 'pptx'
 }
@@ -46,4 +50,3 @@ export interface UserSettings {
   studyReminders: boolean
   highContrastCode: boolean
 }
-

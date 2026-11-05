@@ -1,7 +1,12 @@
 import { Conversation, DocumentItem, Message, StudyMode, UserSettings } from '@/components/dashboard/types'
 
 const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'
-const API_BASE_URL = configuredBaseUrl.replace(/\/+$/, '').replace(/\/api$/, '')
+const API_BASE_URL = configuredBaseUrl.replace(/\/+$/, '')
+const API_PATH_PREFIX = API_BASE_URL.endsWith('/api') ? '' : '/api'
+
+function apiUrl(path: string): string {
+  return `${API_BASE_URL}${API_PATH_PREFIX}${path}`
+}
 
 export type BackendHealth = {
   status: string
@@ -17,11 +22,15 @@ export type ChatApiResponse = {
     page: string | number
     snippet: string
     match_score?: number
+    document_id?: string
+    chunk_id?: string
+    page_number?: number
+    slide_number?: number
   }>
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(apiUrl(path), {
     ...init,
     headers: { ...(init?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...init?.headers },
   })
@@ -43,6 +52,10 @@ function mapMessage(message: Record<string, unknown>): Message {
       page: source.page as string | number,
       snippet: String(source.snippet),
       matchScore: source.match_score as number | undefined,
+      documentId: source.document_id as string | undefined,
+      chunkId: source.chunk_id as string | undefined,
+      pageNumber: source.page_number as number | undefined,
+      slideNumber: source.slide_number as number | undefined,
     })),
     additionalKnowledge: message.additional_ai_knowledge as string | undefined,
   }
@@ -59,6 +72,22 @@ function mapConversation(item: Record<string, unknown>): Conversation {
   }
 }
 
+function mapDocument(item: Record<string, unknown>): DocumentItem {
+  const type = (item.type as DocumentItem['type']) || 'pdf'
+  const color: DocumentItem['color'] =
+    (item.color as DocumentItem['color']) || (type === 'pdf' ? 'coral' : type === 'docx' ? 'violet' : 'mint')
+  return {
+    id: String(item.id),
+    name: String(item.name),
+    size: String(item.size),
+    pages: String(item.pages),
+    color,
+    status: (item.status as DocumentItem['status']) || 'ready',
+    type,
+    uploadProgress: item.uploadProgress as number | undefined,
+  }
+}
+
 export const api = {
   health: () => request<BackendHealth>('/health'),
   listConversations: async () => (await request<Array<Record<string, unknown>>>('/conversations')).map(mapConversation),
@@ -71,28 +100,44 @@ export const api = {
     })),
   deleteConversation: (id: string) => request(`/conversations/${id}`, { method: 'DELETE' }),
   clearConversations: async (conversations: Conversation[]) => Promise.all(conversations.map((conversation) => api.deleteConversation(conversation.id))),
-  listDocuments: () => request<DocumentItem[]>('/documents'),
+  listDocuments: async () => (await request<Array<Record<string, unknown>>>('/documents')).map(mapDocument),
   deleteDocument: (id: string) => request(`/documents/${id}`, { method: 'DELETE' }),
   uploadDocument: (file: File, onProgress?: (progress: number) => void): Promise<DocumentItem> =>
     new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest()
-      xhr.open('POST', `${API_BASE_URL}/documents/upload`)
+      xhr.open('POST', apiUrl('/documents/upload'))
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100))
       }
       xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText))
-        else reject(new Error(JSON.parse(xhr.responseText)?.detail || 'Upload failed'))
+        let payload: Record<string, unknown> | null = null
+        try {
+          payload = JSON.parse(xhr.responseText)
+        } catch {
+          payload = null
+        }
+        if (xhr.status >= 200 && xhr.status < 300 && payload) {
+          resolve(mapDocument(payload))
+        } else {
+          const detail = payload?.detail
+          const message =
+            typeof detail === 'string'
+              ? detail
+              : Array.isArray(detail) && detail[0]?.msg
+              ? String(detail[0].msg)
+              : `Upload failed (${xhr.status})`
+          reject(new Error(message))
+        }
       }
       xhr.onerror = () => reject(new Error('Network error while uploading document'))
       const form = new FormData()
       form.append('file', file)
       xhr.send(form)
     }),
-  chat: (question: string, conversationId: string | null, mode: StudyMode, detail: UserSettings['answerDetail']) =>
+  chat: (question: string, conversationId: string | null, mode: StudyMode, detail: UserSettings['answerDetail'], documentIds?: string[]) =>
     request<ChatApiResponse>('/chat', {
       method: 'POST',
-      body: JSON.stringify({ question, conversation_id: conversationId, mode, detail }),
+      body: JSON.stringify({ question, conversation_id: conversationId, mode, detail, document_ids: documentIds }),
     }),
   getSettings: () => request<Record<string, unknown>>('/settings'),
   updateSettings: (settings: UserSettings) => request<Record<string, unknown>>('/settings', { method: 'PATCH', body: JSON.stringify({

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { Message, SourceReference } from './types'
 import { ThinkingIndicator } from './thinking-indicator'
+import { FormattedMessage } from './formatted-message'
 
 interface ChatViewProps {
   messages: Message[]
@@ -23,6 +24,11 @@ interface ChatViewProps {
   onRegenerate: () => void
   onViewSource: (source: SourceReference) => void
   fontSize?: 'normal' | 'large' | 'compact'
+}
+
+interface GroupedSource {
+  docName: string
+  items: SourceReference[]
 }
 
 export function ChatView({
@@ -53,10 +59,21 @@ export function ChatView({
       ? 'text-[13px] leading-normal'
       : 'text-sm leading-7'
 
+  // Helper to group citations by document name
+  const getGroupedSources = (sources: SourceReference[]): GroupedSource[] => {
+    const map: Record<string, SourceReference[]> = {}
+    sources.forEach((src) => {
+      const name = src.docName || 'Document'
+      if (!map[name]) map[name] = []
+      map[name].push(src)
+    })
+    return Object.entries(map).map(([docName, items]) => ({ docName, items }))
+  }
+
   return (
     <div className="flex flex-col gap-8 pb-10">
       <AnimatePresence initial={false}>
-        {messages.map((msg, index) => {
+        {messages.map((msg) => {
           if (msg.role === 'user') {
             return (
               <motion.div
@@ -76,7 +93,9 @@ export function ChatView({
             )
           }
 
-          // Assistant Response
+          // Assistant Response Card (Academic Study Note Presentation)
+          const groupedSources = msg.sources && msg.sources.length > 0 ? getGroupedSources(msg.sources) : []
+
           return (
             <motion.div
               key={msg.id}
@@ -86,85 +105,117 @@ export function ChatView({
               className="flex items-start gap-3.5 sm:gap-4"
             >
               {/* Syllabix Assistant Avatar */}
-              <div className="grid size-9 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#ffe5df] to-[#fdeae6] text-[#e17863] shadow-sm">
+              <div className="grid size-9 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#ffe5df] to-[#fdeae6] text-[#e17863] shadow-xs">
                 <Sparkles className="size-4" />
               </div>
 
-              {/* Main Answer Card */}
+              {/* Main Study Note Answer Card */}
               <div className="flex-1 max-w-3xl">
-                <div className="rounded-2xl border border-[#ebe7f4] bg-white p-5 sm:p-6 shadow-sm">
-                  {/* Message Content */}
-                  <div className={`text-[#3f3956] ${textSizeClass}`}>
-                    <FormattedMessageContent content={msg.content} />
+                <div className="rounded-2xl border border-[#ebe7f4] bg-white p-5 sm:p-7 shadow-xs transition-all hover:border-[#dfd7f2]">
+                  {/* Clean Answer Header */}
+                  <div className="mb-4 flex items-center justify-between border-b border-[#f2edf9] pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="flex size-5 items-center justify-center rounded-md bg-gradient-to-br from-[#7763d9] to-[#ee8a7a] text-white shadow-2xs">
+                        <Sparkles className="size-3" />
+                      </div>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#7763d9]">
+                        AI Answer
+                      </span>
+                      <span className="hidden sm:inline-block rounded-full bg-[#f3effe] px-2 py-0.5 text-[10px] font-semibold text-[#6853cc]">
+                        Study Note
+                      </span>
+                    </div>
+
+                    <span className="text-[11px] font-medium text-[#aaa4bc]">
+                      {msg.timestamp}
+                    </span>
+                  </div>
+
+                  {/* Formatted Academic Answer Content */}
+                  <div className={`text-[#383152] ${textSizeClass}`}>
+                    <FormattedMessage content={msg.content} />
                   </div>
 
                   {/* Grounded Source References */}
-                  {msg.sources && msg.sources.length > 0 && (
+                  {groupedSources.length > 0 && (
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.2, duration: 0.35 }}
+                      transition={{ delay: 0.15, duration: 0.35 }}
                       className="mt-6 border-t border-[#f0ebf8] pt-4"
                     >
-                      <div className="mb-2.5 flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-xs font-bold text-[#4c446c]">
-                          <BookOpen className="size-3.5 text-[#7763d9]" /> Grounded In Syllabus
-                        </span>
-                        <span className="text-[11px] font-semibold text-[#2d9b75] bg-[#e6f8f1] px-2 py-0.5 rounded-full">
-                          Verified match
+                      <div className="mb-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold uppercase tracking-wider text-[#3d3460] flex items-center gap-1.5">
+                            <BookOpen className="size-3.5 text-[#7763d9]" /> Sources
+                          </span>
+                          <span className="rounded-full bg-[#f1edfe] px-2 py-0.5 text-[10px] font-semibold text-[#7763d9]">
+                            {msg.sources!.length} {msg.sources!.length === 1 ? 'citation' : 'citations'}
+                          </span>
+                        </div>
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#2d9b75] bg-[#e6f8f1] px-2.5 py-0.5 rounded-full">
+                          <Check className="size-3" /> Grounded in Syllabus
                         </span>
                       </div>
 
                       <div className="flex flex-col gap-2.5">
-                        {msg.sources.map((src, i) => (
+                        {groupedSources.map((group, i) => (
                           <div
                             key={i}
-                            className="group flex flex-col justify-between rounded-xl border border-[#e8e2f4] bg-[#faf8fe] p-3 text-xs transition hover:border-[#bdaff2] hover:bg-white sm:flex-row sm:items-center gap-2"
+                            className="rounded-xl border border-[#ebe4f7] bg-[#fbf9fe] p-3.5 text-xs transition hover:border-[#cfc3f5] hover:bg-white shadow-2xs"
                           >
-                            <div className="flex items-start gap-2.5">
-                              <span
-                                className={`mt-0.5 grid size-6 place-items-center rounded-md ${
-                                  src.color === 'coral'
-                                    ? 'bg-[#ffe5df] text-[#e26d5a]'
-                                    : src.color === 'violet'
-                                    ? 'bg-[#eee9ff] text-[#7763d9]'
-                                    : 'bg-[#dff7ee] text-[#2d9b75]'
-                                }`}
-                              >
-                                <FileText className="size-3.5" />
-                              </span>
-                              <div>
-                                <div className="flex items-center gap-2 font-semibold text-[#302b4b]">
-                                  <span>{src.docName}</span>
-                                  <span className="rounded bg-white px-1.5 py-0.2 text-[10px] text-[#7763d9] border border-[#e8e2f4]">
-                                    {src.page}
-                                  </span>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex items-center gap-2.5">
+                                <span className="flex size-7 items-center justify-center rounded-lg bg-[#eee9ff] text-[#7763d9]">
+                                  <FileText className="size-4" />
+                                </span>
+                                <div>
+                                  <p className="font-bold text-[#2a2346] text-xs sm:text-[13px]">
+                                    {group.docName}
+                                  </p>
+                                  <div className="mt-1 flex flex-wrap gap-1.5">
+                                    {group.items.map((src, idx) => (
+                                      <button
+                                        key={idx}
+                                        onClick={() => onViewSource(src)}
+                                        className="inline-flex items-center gap-1 rounded-md border border-[#e5dcfa] bg-white px-2 py-0.5 text-[10px] font-semibold text-[#6853cc] hover:bg-[#eee9ff] transition"
+                                        title="Click to view extracted context"
+                                      >
+                                        <span>{src.page}</span>
+                                        <ExternalLink className="size-2.5" />
+                                      </button>
+                                    ))}
+                                  </div>
                                 </div>
-                                <p className="mt-1 text-[11px] text-[#7e7795] line-clamp-2">
-                                  “{src.snippet}”
-                                </p>
                               </div>
+
+                              <button
+                                onClick={() => onViewSource(group.items[0])}
+                                className="inline-flex items-center gap-1 rounded-lg border border-[#e8e2f4] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#7763d9] hover:bg-[#f3effe] transition shadow-2xs"
+                              >
+                                <span>View extract</span>
+                                <ExternalLink className="size-3" />
+                              </button>
                             </div>
 
-                            <button
-                              onClick={() => onViewSource(src)}
-                              className="self-end sm:self-auto inline-flex items-center gap-1 text-[11px] font-semibold text-[#7763d9] hover:underline"
-                            >
-                              <span>View extract</span>
-                              <ExternalLink className="size-3" />
-                            </button>
+                            {/* Snippet preview */}
+                            {group.items[0].snippet && (
+                              <p className="mt-2.5 text-[11px] text-[#6d6688] line-clamp-2 border-t border-[#f0eaf8] pt-2 italic">
+                                “{group.items[0].snippet}”
+                              </p>
+                            )}
                           </div>
                         ))}
                       </div>
                     </motion.div>
                   )}
 
-                  {/* Additional AI Knowledge Visually Distinct Card */}
+                  {/* Additional AI Knowledge Card */}
                   {msg.additionalKnowledge && (
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.3, duration: 0.35 }}
+                      transition={{ delay: 0.25, duration: 0.35 }}
                       className="mt-4 rounded-xl border border-[#fedecb] bg-gradient-to-br from-[#fffbf8] to-[#fff6f0] p-3.5 text-xs text-[#5c4a3e]"
                     >
                       <div className="mb-1 flex items-center gap-1.5 font-bold text-[#d9674f]">
@@ -177,15 +228,14 @@ export function ChatView({
                     </motion.div>
                   )}
 
-                  {/* Action Bar: Copy, Regenerate, Like */}
-                  <div className="mt-5 flex items-center justify-between border-t border-[#f4effa] pt-3.5 text-xs">
-                    <span className="text-[11px] text-[#aaa4bc]">{msg.timestamp}</span>
-
+                  {/* Action Toolbar: Copy, Regenerate, Like */}
+                  <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-[#f2edf9] pt-3.5 text-xs">
                     <div className="flex items-center gap-2">
                       {/* Copy Button */}
                       <button
                         onClick={() => handleCopy(msg.id, msg.content)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#e8e2f4] bg-white px-2.5 py-1.5 text-xs text-[#6e6888] transition hover:bg-[#f6f2fd] hover:text-[#7763d9]"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#e8e2f4] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#5a5276] shadow-2xs transition hover:bg-[#f6f2fd] hover:text-[#7763d9] hover:border-[#cfc3f5]"
+                        title="Copy answer to clipboard"
                       >
                         {copiedId === msg.id ? (
                           <>
@@ -204,27 +254,31 @@ export function ChatView({
                       <button
                         onClick={onRegenerate}
                         disabled={isThinking}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#e8e2f4] bg-white px-2.5 py-1.5 text-xs text-[#6e6888] transition hover:bg-[#f6f2fd] hover:text-[#7763d9] disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#e8e2f4] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#5a5276] shadow-2xs transition hover:bg-[#f6f2fd] hover:text-[#7763d9] hover:border-[#cfc3f5] disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Regenerate this answer using updated context"
                       >
                         <RotateCw
                           className={`size-3.5 ${isThinking ? 'animate-spin' : ''}`}
                         />
                         <span>Regenerate</span>
                       </button>
-
-                      {/* Helpful Button */}
-                      <button
-                        onClick={() => toggleLike(msg.id)}
-                        className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs transition ${
-                          likedMap[msg.id]
-                            ? 'border-[#7763d9] bg-[#f2effd] text-[#7763d9]'
-                            : 'border-[#e8e2f4] bg-white text-[#6e6888] hover:bg-[#f6f2fd]'
-                        }`}
-                        title="Helpful for revision"
-                      >
-                        <ThumbsUp className="size-3.5" />
-                      </button>
                     </div>
+
+                    {/* Helpful Button */}
+                    <button
+                      onClick={() => toggleLike(msg.id)}
+                      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition ${
+                        likedMap[msg.id]
+                          ? 'border-[#7763d9] bg-[#f2effd] text-[#7763d9]'
+                          : 'border-[#e8e2f4] bg-white text-[#6e6888] hover:bg-[#f6f2fd]'
+                      }`}
+                      title={likedMap[msg.id] ? 'Marked as helpful' : 'Mark as helpful for exam revision'}
+                    >
+                      <ThumbsUp className="size-3.5" />
+                      <span className="hidden sm:inline">
+                        {likedMap[msg.id] ? 'Helpful' : 'Save note'}
+                      </span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -234,109 +288,19 @@ export function ChatView({
       </AnimatePresence>
 
       {/* AI Thinking Animation */}
-      {isThinking && <ThinkingIndicator />}
+      <AnimatePresence>
+        {isThinking && (
+          <motion.div
+            key="thinking-indicator-wrapper"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10, transition: { duration: 0.2 } }}
+            transition={{ duration: 0.3 }}
+          >
+            <ThinkingIndicator />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
-
-// Simple Markdown-style clean rendering for exam answers
-function FormattedMessageContent({ content }: { content: string }) {
-  const lines = content.split('\n')
-
-  return (
-    <div className="space-y-3">
-      {lines.map((line, idx) => {
-        const trimmed = line.trim()
-
-        if (trimmed.startsWith('### ')) {
-          return (
-            <h3 key={idx} className="text-base sm:text-lg font-bold text-[#282344] mt-2 mb-1">
-              {trimmed.replace('### ', '')}
-            </h3>
-          )
-        }
-
-        if (trimmed.startsWith('#### ')) {
-          return (
-            <h4 key={idx} className="text-sm font-bold text-[#443b66] mt-2 mb-0.5">
-              {trimmed.replace('#### ', '')}
-            </h4>
-          )
-        }
-
-        if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
-          // Table separator or row
-          if (trimmed.includes('---')) return null
-          const cells = trimmed
-            .split('|')
-            .filter((c, i, a) => i !== 0 && i !== a.length - 1)
-            .map((c) => c.trim())
-          return (
-            <div
-              key={idx}
-              className="grid grid-cols-3 gap-2 rounded-lg bg-[#fbf9fe] p-2 text-xs border border-[#eee8f7]"
-            >
-              {cells.map((cell, cIdx) => (
-                <div key={cIdx} className={cIdx === 0 ? 'font-bold text-[#282344]' : 'text-[#5d567c]'}>
-                  {cell.replace(/\*\*/g, '')}
-                </div>
-              ))}
-            </div>
-          )
-        }
-
-        if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
-          return (
-            <div key={idx} className="flex items-start gap-2 pl-2">
-              <span className="mt-2 size-1.5 shrink-0 rounded-full bg-[#7763d9]" />
-              <div
-                className="flex-1"
-                dangerouslySetInnerHTML={{
-                  __html: formatInlineMarkdown(trimmed.substring(2)),
-                }}
-              />
-            </div>
-          )
-        }
-
-        if (/^\d+\.\s/.test(trimmed)) {
-          const num = trimmed.match(/^\d+\./)?.[0]
-          const rest = trimmed.replace(/^\d+\.\s*/, '')
-          return (
-            <div key={idx} className="flex items-start gap-2 pl-2">
-              <span className="font-bold text-[#7763d9] shrink-0 text-xs mt-0.5">{num}</span>
-              <div
-                className="flex-1"
-                dangerouslySetInnerHTML={{
-                  __html: formatInlineMarkdown(rest),
-                }}
-              />
-            </div>
-          )
-        }
-
-        if (!trimmed) {
-          return <div key={idx} className="h-1" />
-        }
-
-        return (
-          <p
-            key={idx}
-            dangerouslySetInnerHTML={{
-              __html: formatInlineMarkdown(line),
-            }}
-          />
-        )
-      })}
-    </div>
-  )
-}
-
-function formatInlineMarkdown(text: string): string {
-  return text
-    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
-    .replace(/\*(.*?)\*/g, '<i>$1</i>')
-    .replace(/`(.*?)`/g, '<code class="bg-[#eee9ff] text-[#7763d9] px-1 py-0.5 rounded text-xs font-mono">$1</code>')
-    .replace(/\$(.*?)\$/g, '<span class="font-mono bg-[#f4effe] text-[#6555be] px-1 py-0.5 rounded text-xs">$1</span>')
-}
-

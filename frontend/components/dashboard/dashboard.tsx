@@ -87,6 +87,7 @@ export function Dashboard() {
   const hiddenUploadRef = useRef<HTMLInputElement>(null)
   const chatBottomRef = useRef<HTMLDivElement>(null)
   const uploadingFilesRef = useRef(new Set<string>())
+  const isSubmittingRef = useRef(false)
 
   // Current active conversation
   const activeConversation = conversations.find((c) => c.id === activeConvId) || null
@@ -136,6 +137,7 @@ export function Dashboard() {
 
   // Handlers
   const handleNewChat = () => {
+    if (isThinking) return
     setActiveConvId(null)
     setQuery('')
     setIsThinking(false)
@@ -143,6 +145,7 @@ export function Dashboard() {
   }
 
   const handleSelectConversation = (id: string) => {
+    if (isThinking) return
     void api.getConversation(id)
       .then((conversation) => {
         setConversations((previous) => [
@@ -176,24 +179,65 @@ export function Dashboard() {
     fileArray.forEach((file) => {
       const ext = file.name.split('.').pop()?.toLowerCase()
       if (!['pdf', 'docx', 'pptx'].includes(ext || '')) {
-        addToast('error', 'Unsupported file', 'Use PDF, DOCX, or PPTX files.')
+        addToast('error', 'Unsupported file', `${file.name}: Only PDF, DOCX, and PPTX files are supported.`)
+        return
+      }
+      if (file.size === 0) {
+        addToast('error', 'Empty file', `${file.name} is empty (0 bytes).`)
+        return
+      }
+      if (file.size > 25 * 1024 * 1024) {
+        addToast('error', 'File too large', `${file.name} exceeds the 25 MB limit.`)
         return
       }
       const uploadKey = `${file.name}:${file.size}:${file.lastModified}`
       if (uploadingFilesRef.current.has(uploadKey)) {
+        addToast('info', 'Upload in progress', `${file.name} is already uploading.`)
         return
       }
       uploadingFilesRef.current.add(uploadKey)
       const temporaryId = `upload-${Date.now()}-${file.name}`
-      const temporary: DocumentItem = { id: temporaryId, name: file.name, size: 'Uploading', pages: 'Processing', color: 'violet', status: 'uploading', uploadProgress: 0, type: ext as DocumentItem['type'] }
+      const formattedSize = file.size >= 1024 * 1024
+        ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+        : `${Math.max(1, Math.round(file.size / 1024))} KB`
+      const temporary: DocumentItem = {
+        id: temporaryId,
+        name: file.name,
+        size: formattedSize,
+        pages: 'Uploading...',
+        color: ext === 'pdf' ? 'coral' : ext === 'docx' ? 'violet' : 'mint',
+        status: 'uploading',
+        uploadProgress: 0,
+        type: ext as DocumentItem['type'],
+      }
       setDocs((prev) => [temporary, ...prev])
-      void api.uploadDocument(file, (progress) => setDocs((prev) => prev.map((doc) => doc.id === temporaryId ? { ...doc, uploadProgress: progress } : doc)))
-        .then((document) => {
-          setDocs((prev) => [document, ...prev.filter((doc) => doc.id !== temporaryId)])
-          addToast('success', 'Document Ready', `${file.name} has been indexed.`)
+      void api.uploadDocument(file, (progress) =>
+        setDocs((prev) =>
+          prev.map((doc) => {
+            if (doc.id !== temporaryId) return doc
+            const isIndexing = progress >= 100
+            return {
+              ...doc,
+              uploadProgress: progress,
+              status: isIndexing ? 'indexing' : 'uploading',
+              pages: isIndexing ? 'Indexing syllabus...' : `${progress}% uploaded`,
+            }
+          })
+        )
+      )
+        .then(async (document) => {
+          try {
+            const refreshed = await api.listDocuments()
+            setDocs(refreshed)
+          } catch {
+            setDocs((prev) => [document, ...prev.filter((doc) => doc.id !== temporaryId)])
+          }
+          addToast('success', 'Document Ready', `${file.name} has been processed and indexed.`)
         })
         .catch((error: Error) => {
-          setDocs((prev) => prev.filter((doc) => doc.id !== temporaryId))
+          void api.listDocuments()
+            .then((refreshed) => setDocs(refreshed))
+            .catch(() => setDocs((prev) => prev.filter((doc) => doc.id !== temporaryId)))
           addToast('error', 'Upload failed', error.message)
         })
         .finally(() => uploadingFilesRef.current.delete(uploadKey))
@@ -201,10 +245,27 @@ export function Dashboard() {
   }
 
   const handleDeleteDoc = (id: string) => {
-    void api.deleteDocument(id).then(() => {
-      setDocs((prev) => prev.filter((d) => d.id !== id))
-      addToast('info', 'Document removed')
-    }).catch((error: Error) => addToast('error', 'Could not remove document', error.message))
+    const docToDelete = docs.find((d) => d.id === id)
+    const docName = docToDelete?.name || 'this document'
+
+    if (typeof window !== 'undefined') {
+      const confirmed = window.confirm(
+        `Are you sure you want to permanently delete "${docName}"?\n\nThis will remove the file from local storage, vector indexes, and database.`
+      )
+      if (!confirmed) return
+    }
+
+    void api.deleteDocument(id)
+      .then(() => {
+        setDocs((prev) => prev.filter((d) => d.id !== id))
+        if (activePreviewDoc?.id === id) {
+          setActivePreviewDoc(null)
+        }
+        addToast('success', 'Document Deleted', `"${docName}" has been permanently removed.`)
+      })
+      .catch((error: Error) => {
+        addToast('error', 'Could not delete document', error.message)
+      })
   }
 
   const handleSelectPrompt = (promptText: string) => {
@@ -213,7 +274,10 @@ export function Dashboard() {
 
   const handleSendMessage = (messageText?: string) => {
     const textToSend = messageText || query
-    if (!textToSend.trim() || isThinking) return
+    if (!textToSend.trim() || isThinking || isSubmittingRef.current) return
+
+    isSubmittingRef.current = true
+    setIsThinking(true)
 
     const userMessage: Message = {
       id: `msg-${Date.now()}`,
@@ -225,29 +289,120 @@ export function Dashboard() {
       }),
     }
 
-    const targetConvId = activeConvId
+    const isNewConversation = !activeConvId || activeConvId.startsWith('temp-')
+    const apiConvId = isNewConversation ? null : activeConvId
+    const tempConvId = isNewConversation ? `temp-${Date.now()}` : activeConvId
+
+    if (isNewConversation) {
+      const initialConv: Conversation = {
+        id: tempConvId,
+        title: textToSend.trim().slice(0, 32),
+        preview: textToSend.trim(),
+        updatedAt: 'Just now',
+        mode,
+        messages: [userMessage],
+      }
+      setConversations((prev) => [initialConv, ...prev])
+      setActiveConvId(tempConvId)
+    } else {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === tempConvId
+            ? { ...c, messages: [...c.messages, userMessage], updatedAt: 'Just now' }
+            : c
+        )
+      )
+    }
+
     setQuery('')
-    setIsThinking(true)
-    void api.chat(textToSend.trim(), targetConvId, mode, settings.answerDetail)
+
+    void api.chat(textToSend.trim(), apiConvId, mode, settings.answerDetail)
       .then((response) => {
         const assistantMessage: Message = {
-          id: response.message_id, role: 'assistant', content: response.answer,
+          id: response.message_id,
+          role: 'assistant',
+          content: response.answer,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           additionalKnowledge: response.additional_ai_knowledge,
-          sources: response.sources.map((source) => ({ docName: String(source.doc_name), page: source.page as string | number, snippet: String(source.snippet), matchScore: source.match_score as number | undefined })),
+          sources: response.sources.map((source) => ({
+            docName: String(source.doc_name),
+            page: source.page as string | number,
+            snippet: String(source.snippet),
+            matchScore: source.match_score as number | undefined,
+            documentId: source.document_id,
+            chunkId: source.chunk_id,
+            pageNumber: source.page_number,
+            slideNumber: source.slide_number,
+          })),
         }
-        const nextConversation: Conversation = activeConversation
-          ? { ...activeConversation, messages: [...activeConversation.messages, userMessage, assistantMessage], updatedAt: 'Just now' }
-          : { id: response.conversation_id, title: textToSend.trim().slice(0, 32), preview: textToSend.trim(), updatedAt: 'Just now', mode, messages: [userMessage, assistantMessage] }
-        setConversations((prev) => [nextConversation, ...prev.filter((conversation) => conversation.id !== nextConversation.id)])
+
+        setConversations((prev) => {
+          const current = prev.find((c) => c.id === tempConvId)
+          if (current) {
+            const updated: Conversation = {
+              ...current,
+              id: response.conversation_id,
+              messages: [...current.messages, assistantMessage],
+              updatedAt: 'Just now',
+            }
+            return [updated, ...prev.filter((c) => c.id !== tempConvId && c.id !== response.conversation_id)]
+          }
+          const next: Conversation = {
+            id: response.conversation_id,
+            title: textToSend.trim().slice(0, 32),
+            preview: textToSend.trim(),
+            updatedAt: 'Just now',
+            mode,
+            messages: [userMessage, assistantMessage],
+          }
+          return [next, ...prev.filter((c) => c.id !== response.conversation_id)]
+        })
         setActiveConvId(response.conversation_id)
       })
-      .catch((error: Error) => addToast('error', 'Could not generate answer', error.message))
-      .finally(() => setIsThinking(false))
+      .catch((error: Error) => {
+        // Preserve user's question so they do not need to retype it
+        setQuery(textToSend)
+
+        // Roll back the optimistic message so conversation state stays accurate
+        if (isNewConversation) {
+          setConversations((prev) => prev.filter((c) => c.id !== tempConvId))
+          setActiveConvId(null)
+        } else {
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.id === tempConvId
+                ? { ...c, messages: c.messages.filter((m) => m.id !== userMessage.id) }
+                : c
+            )
+          )
+        }
+
+        const isHighDemand =
+          error.message.toLowerCase().includes('high demand') ||
+          error.message.includes('503') ||
+          error.message.toLowerCase().includes('temporarily')
+        if (isHighDemand) {
+          addToast(
+            'error',
+            'AI High Demand',
+            'AI service is temporarily experiencing high demand. Your question was preserved. Please click Send to retry.'
+          )
+        } else {
+          addToast(
+            'error',
+            'Could not generate answer',
+            `${error.message || 'Please check your connection.'} Your question was preserved.`
+          )
+        }
+      })
+      .finally(() => {
+        isSubmittingRef.current = false
+        setIsThinking(false)
+      })
   }
 
   const handleRegenerate = () => {
-    if (!activeConversation || activeConversation.messages.length === 0 || isThinking)
+    if (!activeConversation || activeConversation.messages.length === 0 || isThinking || isSubmittingRef.current)
       return
 
     const lastUser = [...activeConversation.messages].reverse().find((message) => message.role === 'user')
@@ -405,6 +560,7 @@ export function Dashboard() {
                   docs={docs}
                   onOpenUpload={() => hiddenUploadRef.current?.click()}
                   onPreviewDoc={handlePreviewDoc}
+                  query={query}
                 />
               </div>
             ) : (
