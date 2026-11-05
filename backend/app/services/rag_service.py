@@ -51,10 +51,12 @@ class RAGService:
                     for document_id in document_ids
                 ]
             )
+
+        fetch_limit = max(settings.retrieval_limit, 8)
         logger.info(
             "Executing Qdrant vector retrieval in collection '%s' (limit=%d, score_threshold=%.2f, filter=%s)",
             COLLECTION_NAME,
-            settings.retrieval_limit,
+            fetch_limit,
             settings.retrieval_score_threshold,
             bool(query_filter),
         )
@@ -65,7 +67,7 @@ class RAGService:
                 results = await get_qdrant().query_points(
                     collection_name=COLLECTION_NAME,
                     query=vector,
-                    limit=settings.retrieval_limit,
+                    limit=fetch_limit,
                     score_threshold=settings.retrieval_score_threshold,
                     query_filter=query_filter,
                     with_payload=True,
@@ -88,8 +90,78 @@ class RAGService:
                     raise
 
         retrieved_points = results.points if results and hasattr(results, "points") else []
-        logger.info("Qdrant retrieval completed: retrieved %d chunks", len(retrieved_points))
-        return [{"score": item.score, **(item.payload or {})} for item in retrieved_points]
+        logger.info("Qdrant initial retrieval completed: retrieved %d candidate points", len(retrieved_points))
+
+        candidate_items = [{"score": item.score, **(item.payload or {})} for item in retrieved_points]
+
+        # Neighboring chunk expansion: for top matches, ensure next consecutive chunk is available
+        retrieved_keys = {
+            (item.get("document_id"), item.get("chunk_index"))
+            for item in candidate_items
+            if item.get("document_id") is not None and item.get("chunk_index") is not None
+        }
+
+        missing_neighbors: list[tuple[str, int, float]] = []
+        for item in candidate_items:
+            doc_id = item.get("document_id")
+            idx = item.get("chunk_index")
+            score = item.get("score", 0.0)
+            if doc_id and idx is not None and score >= 0.35:
+                next_key = (doc_id, idx + 1)
+                if next_key not in retrieved_keys:
+                    missing_neighbors.append((doc_id, idx + 1, score * 0.92))
+                    retrieved_keys.add(next_key)
+
+        if missing_neighbors:
+            logger.info("Checking neighbor expansion for %d adjacent chunks", len(missing_neighbors))
+            client = get_qdrant()
+            for doc_id, next_idx, proxy_score in missing_neighbors[:3]:
+                try:
+                    neighbor_filter = models.Filter(
+                        must=[
+                            models.FieldCondition(key="document_id", match=models.MatchValue(value=doc_id)),
+                            models.FieldCondition(key="chunk_index", match=models.MatchValue(value=next_idx)),
+                        ]
+                    )
+                    n_res, _ = await client.scroll(
+                        collection_name=COLLECTION_NAME,
+                        scroll_filter=neighbor_filter,
+                        limit=1,
+                        with_payload=True,
+                    )
+                    if n_res:
+                        n_point = n_res[0]
+                        candidate_items.append({"score": proxy_score, **(n_point.payload or {})})
+                        logger.info(
+                            "Neighbor expansion included adjacent chunk: doc=%s, chunk_index=%d, page=%s",
+                            doc_id,
+                            next_idx,
+                            n_point.payload.get("page_number"),
+                        )
+                except Exception as n_err:
+                    logger.warning("Neighbor expansion lookup skipped: %s", n_err)
+
+        # Sort candidate items by document and sequential chunk_index for continuous narrative reading
+        candidate_items.sort(
+            key=lambda x: (
+                str(x.get("document_id") or ""),
+                int(x.get("chunk_index") if x.get("chunk_index") is not None else 9999),
+            )
+        )
+
+        for i, item in enumerate(candidate_items, 1):
+            logger.info(
+                "Retrieved Chunk #%d: score=%.4f | doc=%s | page=%s | index=%s | section=%s | snippet=%s",
+                i,
+                item.get("score", 0.0),
+                item.get("filename"),
+                item.get("location"),
+                item.get("chunk_index"),
+                item.get("section_heading"),
+                repr(item.get("chunk_text", "")[:80]),
+            )
+
+        return candidate_items
 
     async def answer(
         self,
@@ -105,10 +177,20 @@ class RAGService:
             raise NoRetrievedContextError(
                 "No indexed document content is available for this question."
             )
-        context = "\n\n".join(
-            f"Source: {item.get('filename')}, {item.get('location', 'Document')}\n"
-            f"{item['chunk_text']}"
-            for item in results
+
+        context_blocks = []
+        for item in results:
+            heading_info = f" | Section: {item['section_heading']}" if item.get("section_heading") else ""
+            context_blocks.append(
+                f"Source: {item.get('filename')}, {item.get('location', 'Document')}{heading_info}\n"
+                f"{item['chunk_text']}"
+            )
+        context = "\n\n".join(context_blocks)
+
+        logger.info(
+            "Calling LLM answer generation with context length=%d chars across %d chunks",
+            len(context),
+            len(results),
         )
         answer, additional = await self.llm.answer(question, context or "(No relevant syllabus context found.)", history, mode, detail)
         sources = [
@@ -204,7 +286,7 @@ class RAGService:
                 "chunk_index": chunk.index, "location": location,
             }))
         if points:
-            await ensure_collection_and_payload_index()
+            await ensure_collection_and_payload_index(client=get_qdrant())
             await self.delete_document(document_id)
             await self._upsert_batches(document_id, points)
 

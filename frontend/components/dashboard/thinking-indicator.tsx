@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Brain, Search, BookOpen } from 'lucide-react'
+import { Sparkles, Brain, Search } from 'lucide-react'
 import { WalkingIllustration } from './walking-illustration'
+import { PenguinIllustration } from './penguin-illustration'
+import { WarriorIllustration } from './warrior-illustration'
+import { LoadingAnimationTheme } from './types'
 
 const THINKING_PHRASES = [
   'Syllabix is thinking...',
@@ -13,7 +16,11 @@ const THINKING_PHRASES = [
   'Preparing your answer...',
 ]
 
-export function ThinkingIndicator() {
+interface ThinkingIndicatorProps {
+  animationTheme?: LoadingAnimationTheme
+}
+
+export function ThinkingIndicator({ animationTheme = 'couple' }: ThinkingIndicatorProps) {
   const [index, setIndex] = useState(0)
 
   useEffect(() => {
@@ -109,12 +116,17 @@ export function ThinkingIndicator() {
           />
         </div>
 
-        {/* Animated Boy and Girl Illustration */}
-        <div className="mt-3.5 pt-2 border-t border-[#f4f0fa] flex flex-col items-center justify-center overflow-hidden rounded-xl">
-          <WalkingIllustration />
+        {/* Selected AI Animation */}
+        <div className="mt-3.5 pt-2 border-t border-[#f4f0fa] w-full flex flex-col items-center justify-center overflow-hidden rounded-xl">
+          {animationTheme === 'penguin' ? (
+            <PenguinIllustration />
+          ) : animationTheme === 'warrior' ? (
+            <WarriorIllustration />
+          ) : (
+            <WalkingIllustration />
+          )}
         </div>
       </div>
     </motion.div>
   )
 }
-

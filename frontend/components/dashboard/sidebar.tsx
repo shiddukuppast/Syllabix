@@ -17,9 +17,13 @@ import {
   MessageCircle,
   Upload,
   Loader2,
+  Bookmark,
+  Maximize2,
+  Lock,
 } from 'lucide-react'
-import { Conversation, DocumentItem } from './types'
+import { Conversation, DocumentItem, SavedNote, SourceReference } from './types'
 import { EmptyConversations, EmptyDocuments, EmptySearch } from './empty-states'
+import { SavedNoteCard } from './saved-note-card'
 
 interface SidebarProps {
   conversations: Conversation[]
@@ -36,6 +40,12 @@ interface SidebarProps {
   setIsMobileOpen: (open: boolean) => void
   isCollapsed: boolean
   setIsCollapsed: (collapsed: boolean | ((prev: boolean) => boolean)) => void
+  savedNotes?: SavedNote[]
+  onDeleteNote?: (id: string) => void
+  onCopyNote?: (text: string) => void
+  onViewSource?: (source: SourceReference) => void
+  onOpenNotesModal?: () => void
+  onLock?: () => void
 }
 
 /** Floating tooltip displayed to the right of rail icons */
@@ -69,9 +79,16 @@ export function Sidebar({
   setIsMobileOpen,
   isCollapsed,
   setIsCollapsed,
+  savedNotes = [],
+  onDeleteNote,
+  onCopyNote,
+  onViewSource,
+  onOpenNotesModal,
+  onLock,
 }: SidebarProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [activeTab, setActiveTab] = useState<'chats' | 'materials'>('chats')
+  const [materialsSubTab, setMaterialsSubTab] = useState<'notes' | 'files'>('notes')
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Keyboard shortcut Ctrl+B / Cmd+B to toggle collapse state
@@ -97,6 +114,18 @@ export function Sidebar({
   const filteredConversations = conversations.filter((c) =>
     c.title.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  const filteredSavedNotes = savedNotes.filter(
+    (n) =>
+      (n.question || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (n.content || '').toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
+  const filteredDocs = docs.filter((d) =>
+    d.name.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
+  const totalNotesAndDocs = savedNotes.length + docs.length
 
   // ==========================================
   // 1. COLLAPSED NAVIGATION RAIL VIEW (70px)
@@ -181,15 +210,15 @@ export function Sidebar({
               ? 'bg-[#ebfaf3] text-[#2d9b75] font-medium'
               : 'text-[#736c8d] hover:bg-[#ebfaf3] hover:text-[#2d9b75]'
             }`}
-          aria-label={`Notes (${docs.length})`}
+          aria-label={`Notes (${totalNotesAndDocs})`}
         >
           <BookOpen className="size-4" />
-          {docs.length > 0 && (
-            <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#2d9b75] px-1 text-[9px] font-bold text-white shadow-2xs">
-              {docs.length}
+          {totalNotesAndDocs > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#7763d9] px-1 text-[9px] font-bold text-white shadow-2xs">
+              {totalNotesAndDocs}
             </span>
           )}
-          <RailTooltip label={`Notes (${docs.length})`} />
+          <RailTooltip label={`Notes (${totalNotesAndDocs})`} />
         </button>
 
         {/* Quick Upload Notes */}
@@ -223,6 +252,18 @@ export function Sidebar({
           <Settings className="size-4" />
           <RailTooltip label="Settings" />
         </button>
+
+        {/* Lock Button */}
+        {onLock && (
+          <button
+            onClick={onLock}
+            className="relative group grid size-10 place-items-center rounded-xl text-[#89849e] hover:bg-[#fff0ed] hover:text-[#e26d5a] transition"
+            aria-label="Lock workspace"
+          >
+            <Lock className="size-4" />
+            <RailTooltip label="Lock workspace" />
+          </button>
+        )}
       </div>
     </div>
   )
@@ -299,7 +340,13 @@ export function Sidebar({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search conversations..."
+              placeholder={
+                activeTab === 'chats'
+                  ? 'Search conversations...'
+                  : materialsSubTab === 'notes'
+                  ? 'Search study notes...'
+                  : 'Search course files...'
+              }
               className="w-full rounded-xl border border-[#ebe7f4] bg-[#fbf9fe] py-2 pl-9 pr-7 text-xs text-[#282344] outline-none transition focus:border-[#8b74f5] focus:bg-white placeholder:text-[#aaa4bc]"
             />
             {searchTerm && (
@@ -347,14 +394,14 @@ export function Sidebar({
               )}
               <span className="relative z-10 flex items-center gap-1.5">
                 <BookOpen className="size-3.5" />
-                <span>Notes ({docs.length})</span>
+                <span>Notes ({totalNotesAndDocs})</span>
               </span>
             </button>
           </div>
         </div>
 
         {/* Main Scrollable Content */}
-        <div className="flex-1 overflow-y-auto px-2 py-2">
+        <div className="flex-1 overflow-y-auto px-2 py-2 sidebar-scroll">
           {activeTab === 'chats' ? (
             <div>
               {searchTerm && filteredConversations.length === 0 ? (
@@ -412,22 +459,104 @@ export function Sidebar({
             </div>
           ) : (
             <div>
-              <div className="mb-2 flex items-center justify-between px-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#aaa4bc]">
-                  Indexed Materials
-                </span>
+              {/* Materials & Study Notes Sub-tabs */}
+              <div className="mb-2.5 flex items-center justify-between rounded-xl bg-[#f5f2fb] p-1">
                 <button
-                  onClick={onOpenUpload}
-                  className="flex items-center gap-1 text-[11px] font-semibold text-[#7763d9] hover:underline"
+                  onClick={() => setMaterialsSubTab('notes')}
+                  className={`flex-1 rounded-lg py-1 text-[11px] font-semibold transition ${
+                    materialsSubTab === 'notes'
+                      ? 'bg-white text-[#7763d9] shadow-xs'
+                      : 'text-[#89849e] hover:text-[#282344]'
+                  }`}
                 >
-                  <Plus className="size-3" /> Add
+                  Study Notes ({savedNotes.length})
+                </button>
+                <button
+                  onClick={() => setMaterialsSubTab('files')}
+                  className={`flex-1 rounded-lg py-1 text-[11px] font-semibold transition ${
+                    materialsSubTab === 'files'
+                      ? 'bg-white text-[#2d9b75] shadow-xs'
+                      : 'text-[#89849e] hover:text-[#282344]'
+                  }`}
+                >
+                  Course Files ({docs.length})
                 </button>
               </div>
 
-              {docs.length === 0 ? (
-                <EmptyDocuments onUpload={onOpenUpload} />
+              {materialsSubTab === 'notes' ? (
+                <div>
+                  <div className="mb-2 flex items-center justify-between px-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#aaa4bc] flex items-center gap-1">
+                      <Bookmark className="size-3 fill-[#7763d9] text-[#7763d9]" /> Saved Notes
+                    </span>
+                    {onOpenNotesModal && savedNotes.length > 0 && (
+                      <button
+                        onClick={onOpenNotesModal}
+                        className="flex items-center gap-1 text-[11px] font-semibold text-[#7763d9] hover:underline"
+                        title="Open study notes dialog"
+                      >
+                        <Maximize2 className="size-3" /> View All
+                      </button>
+                    )}
+                  </div>
+
+                  {filteredSavedNotes.length === 0 ? (
+                    savedNotes.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-10 px-3 text-center">
+                        <div className="grid size-10 place-items-center rounded-xl bg-[#f5f2fb] text-[#7763d9] mb-2">
+                          <Bookmark className="size-4 fill-[#7763d9]" />
+                        </div>
+                        <p className="text-xs font-bold text-[#282344]">No Saved Notes Yet</p>
+                        <p className="text-[11px] text-[#89849e] mt-1 leading-relaxed">
+                          Click &ldquo;Save note&rdquo; on any answer to review it here for exams.
+                        </p>
+                      </div>
+                    ) : (
+                      <EmptySearch
+                        searchTerm={searchTerm}
+                        onClear={() => setSearchTerm('')}
+                      />
+                    )
+                  ) : (
+                    <div className="flex flex-col gap-2.5">
+                      {filteredSavedNotes.map((note) => (
+                        <SavedNoteCard
+                          key={note.id}
+                          note={note}
+                          onDelete={onDeleteNote || (() => {})}
+                          onCopy={onCopyNote || (() => {})}
+                          onViewSource={onViewSource}
+                          compact={true}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               ) : (
-                <div className="flex flex-col gap-2">
+                <div>
+                  <div className="mb-2 flex items-center justify-between px-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#aaa4bc]">
+                      Indexed Materials
+                    </span>
+                    <button
+                      onClick={onOpenUpload}
+                      className="flex items-center gap-1 text-[11px] font-semibold text-[#7763d9] hover:underline"
+                    >
+                      <Plus className="size-3" /> Add
+                    </button>
+                  </div>
+
+                  {filteredDocs.length === 0 ? (
+                    docs.length === 0 ? (
+                      <EmptyDocuments onUpload={onOpenUpload} />
+                    ) : (
+                      <EmptySearch
+                        searchTerm={searchTerm}
+                        onClear={() => setSearchTerm('')}
+                      />
+                    )
+                  ) : (
+                    <div className="flex flex-col gap-2">
                   {docs.map((d) => (
                     <div
                       key={d.id}
@@ -493,6 +622,8 @@ export function Sidebar({
             </div>
           )}
         </div>
+      )}
+        </div>
       </div>
 
       {/* Footer: Personal Workspace Card & Settings */}
@@ -520,6 +651,17 @@ export function Sidebar({
           <Settings className="size-4 shrink-0 text-[#89849e]" />
           <span>Settings</span>
         </button>
+
+        {onLock && (
+          <button
+            onClick={onLock}
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-[#7e7399] transition hover:bg-[#fff0ed] hover:text-[#e26d5a]"
+            title="Lock workspace immediately"
+          >
+            <Lock className="size-4 shrink-0 text-[#89849e]" />
+            <span>Lock Workspace</span>
+          </button>
+        )}
       </div>
     </div>
   )

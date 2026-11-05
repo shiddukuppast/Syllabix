@@ -11,8 +11,13 @@ import {
   Check,
   Sparkles,
   ShieldCheck,
+  Film,
+  Lock,
 } from 'lucide-react'
-import { UserSettings } from './types'
+import { UserSettings, LoadingAnimationTheme } from './types'
+import { WalkingIllustration } from './walking-illustration'
+import { PenguinIllustration } from './penguin-illustration'
+import { WarriorIllustration } from './warrior-illustration'
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -20,7 +25,30 @@ interface SettingsModalProps {
   settings: UserSettings
   onUpdateSettings: (newSettings: Partial<UserSettings>) => void
   onClearHistory: () => void
+  onLock?: () => void
 }
+
+const ANIMATION_OPTIONS: Array<{
+  id: LoadingAnimationTheme
+  name: string
+  description: string
+}> = [
+  {
+    id: 'couple',
+    name: 'Boy & Girl',
+    description: 'A peaceful walking story.',
+  },
+  {
+    id: 'penguin',
+    name: 'Penguin Adventure',
+    description: 'Keep climbing, no matter how difficult the journey.',
+  },
+  {
+    id: 'warrior',
+    name: 'The Lone Warrior',
+    description: 'One warrior against all odds.',
+  },
+]
 
 export function SettingsModal({
   isOpen,
@@ -28,6 +56,7 @@ export function SettingsModal({
   settings,
   onUpdateSettings,
   onClearHistory,
+  onLock,
 }: SettingsModalProps) {
   if (!isOpen) return null
 
@@ -49,7 +78,7 @@ export function SettingsModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ duration: 0.2 }}
-          className="relative z-10 w-full max-w-lg rounded-3xl border border-[#ebe7f4] bg-white p-6 shadow-2xl shadow-[#7763d9]/15"
+          className="relative z-10 w-full max-w-xl rounded-3xl border border-[#ebe7f4] bg-white p-6 shadow-2xl shadow-[#7763d9]/15"
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-[#f0edf7] pb-4">
@@ -71,7 +100,7 @@ export function SettingsModal({
           </div>
 
           {/* Body */}
-          <div className="mt-5 space-y-5 max-h-[70vh] overflow-y-auto pr-1">
+          <div className="mt-5 space-y-5 max-h-[72vh] overflow-y-auto pr-1 sidebar-scroll">
             {/* Reading Comfort Font Size */}
             <div>
               <label className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#7e7697]">
@@ -95,6 +124,68 @@ export function SettingsModal({
                     {size}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* AI Loading Animation Selection */}
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#7e7697]">
+                  <Film className="size-3.5 text-[#7763d9]" /> AI Loading Animation
+                </label>
+                <span className="text-[10px] font-semibold text-[#7763d9] bg-[#f2effd] px-2 py-0.5 rounded-full">
+                  3 Options
+                </span>
+              </div>
+              <p className="text-[11px] text-[#aaa4bc] mt-0.5">
+                Choose the animation that accompanies your AI while it prepares your answers.
+              </p>
+
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {ANIMATION_OPTIONS.map((option) => {
+                  const isSelected = (settings.loadingAnimation || 'couple') === option.id
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => onUpdateSettings({ loadingAnimation: option.id })}
+                      className={`group relative flex flex-col rounded-2xl border text-left transition-all overflow-hidden p-2.5 ${
+                        isSelected
+                          ? 'border-[#7763d9] bg-[#f7f4fe] ring-2 ring-[#7763d9]/25 shadow-sm'
+                          : 'border-[#e8e2f4] bg-white hover:border-[#cfc3f5] hover:bg-[#faf9fd]'
+                      }`}
+                    >
+                      {/* Mini Live Preview Stage */}
+                      <div className="relative h-20 w-full overflow-hidden rounded-xl bg-[#1d1733] flex items-center justify-center border border-[#35295c]/30 shadow-inner">
+                        {option.id === 'couple' && <WalkingIllustration isPreview />}
+                        {option.id === 'penguin' && <PenguinIllustration isPreview />}
+                        {option.id === 'warrior' && <WarriorIllustration isPreview />}
+                      </div>
+
+                      {/* Card Content & Selection Indicator */}
+                      <div className="mt-2.5 flex items-start justify-between gap-1">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-[#2a2448] truncate">
+                            {option.name}
+                          </p>
+                          <p className="text-[10px] text-[#837b9d] line-clamp-2 mt-0.5 leading-snug">
+                            {option.description}
+                          </p>
+                        </div>
+
+                        <div
+                          className={`flex size-4 shrink-0 items-center justify-center rounded-full mt-0.5 transition ${
+                            isSelected
+                              ? 'bg-[#7763d9] text-white'
+                              : 'border border-[#dcd6ec] bg-white group-hover:border-[#7763d9]'
+                          }`}
+                        >
+                          {isSelected && <Check className="size-2.5 stroke-[3]" />}
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
@@ -207,6 +298,31 @@ export function SettingsModal({
               </div>
             </div>
 
+            {/* Personal Workspace Security & Lock */}
+            {onLock && (
+              <div className="flex items-center justify-between border-t border-[#f0edf7] pt-4">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <ShieldCheck className="size-3.5 text-[#2d9b75]" />
+                    <p className="text-xs font-bold text-[#302b4b]">Personal Workspace Lock</p>
+                  </div>
+                  <p className="text-[11px] text-[#8a849e] mt-0.5">
+                    Locks automatically after 5m of inactivity or manually.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    onClose()
+                    onLock()
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#e2d8f7] bg-[#fbf9fe] px-3 py-1.5 text-xs font-semibold text-[#6853cc] transition hover:bg-[#ede8ff] hover:text-[#523eb0] shadow-2xs"
+                >
+                  <Lock className="size-3.5" />
+                  Lock Workspace
+                </button>
+              </div>
+            )}
+
             {/* Danger Zone: Clear History */}
             <div className="flex items-center justify-between border-t border-[#f0edf7] pt-4">
               <div>
@@ -242,4 +358,3 @@ export function SettingsModal({
     </AnimatePresence>
   )
 }
-

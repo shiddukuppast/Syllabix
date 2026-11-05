@@ -1,12 +1,13 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
+from app.core.security import require_auth
 from app.database.mongodb import close_mongodb, connect_mongodb
 from app.database.qdrant import close_qdrant, connect_qdrant
-from app.routes import chat, conversations, documents, settings
+from app.routes import auth, chat, conversations, documents, settings
 from app.services.embedding_service import EmbeddingService
 from app.services.llm_service import LLMService
 from app.services.rag_service import RAGService
@@ -26,10 +27,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Syllabix API", version="1.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=[get_settings().frontend_url], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
-app.include_router(documents.router)
-app.include_router(chat.router)
-app.include_router(conversations.router)
-app.include_router(settings.router)
+
+# Public endpoints (Auth & Health)
+app.include_router(auth.router)
+
+# Protected endpoints (Require valid PIN session)
+app.include_router(documents.router, dependencies=[Depends(require_auth)])
+app.include_router(chat.router, dependencies=[Depends(require_auth)])
+app.include_router(conversations.router, dependencies=[Depends(require_auth)])
+app.include_router(settings.router, dependencies=[Depends(require_auth)])
+
 
 
 @app.get("/api/health")

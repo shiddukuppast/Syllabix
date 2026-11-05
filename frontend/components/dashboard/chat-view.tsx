@@ -4,18 +4,19 @@ import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Sparkles,
-  FileText,
   Copy,
   Check,
-  RotateCw,
-  ExternalLink,
-  ThumbsUp,
+  RotateCcw,
   BookOpen,
-  Lightbulb,
+  Bookmark,
+  FileText,
+  ChevronDown,
 } from 'lucide-react'
-import { Message, SourceReference } from './types'
+import { Message, SourceReference, LoadingAnimationTheme, SavedNote } from './types'
 import { ThinkingIndicator } from './thinking-indicator'
 import { FormattedMessage } from './formatted-message'
+import { SourceViewer } from './source-viewer'
+import { stripInlineSources, mergeSources } from '@/lib/source-utils'
 
 interface ChatViewProps {
   messages: Message[]
@@ -24,11 +25,9 @@ interface ChatViewProps {
   onRegenerate: () => void
   onViewSource: (source: SourceReference) => void
   fontSize?: 'normal' | 'large' | 'compact'
-}
-
-interface GroupedSource {
-  docName: string
-  items: SourceReference[]
+  loadingAnimation?: LoadingAnimationTheme
+  savedNotes?: SavedNote[]
+  onSaveNote?: (msg: Message, cleanContent: string, sources: SourceReference[]) => void
 }
 
 export function ChatView({
@@ -38,9 +37,13 @@ export function ChatView({
   onRegenerate,
   onViewSource,
   fontSize = 'normal',
+  loadingAnimation = 'couple',
+  savedNotes = [],
+  onSaveNote,
 }: ChatViewProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [likedMap, setLikedMap] = useState<Record<string, boolean>>({})
+  const [savedMap, setSavedMap] = useState<Record<string, boolean>>({})
+  const [openSources, setOpenSources] = useState<Record<string, boolean>>({})
 
   const handleCopy = (id: string, text: string) => {
     onCopyAnswer(text)
@@ -48,8 +51,12 @@ export function ChatView({
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  const toggleLike = (id: string) => {
-    setLikedMap((prev) => ({ ...prev, [id]: !prev[id] }))
+  const toggleSources = (id: string) => {
+    setOpenSources((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  const toggleSaveFallback = (id: string) => {
+    setSavedMap((prev) => ({ ...prev, [id]: !prev[id] }))
   }
 
   const textSizeClass =
@@ -58,17 +65,6 @@ export function ChatView({
       : fontSize === 'compact'
       ? 'text-[13px] leading-normal'
       : 'text-sm leading-7'
-
-  // Helper to group citations by document name
-  const getGroupedSources = (sources: SourceReference[]): GroupedSource[] => {
-    const map: Record<string, SourceReference[]> = {}
-    sources.forEach((src) => {
-      const name = src.docName || 'Document'
-      if (!map[name]) map[name] = []
-      map[name].push(src)
-    })
-    return Object.entries(map).map(([docName, items]) => ({ docName, items }))
-  }
 
   return (
     <div className="flex flex-col gap-8 pb-10">
@@ -93,8 +89,15 @@ export function ChatView({
             )
           }
 
-          // Assistant Response Card (Academic Study Note Presentation)
-          const groupedSources = msg.sources && msg.sources.length > 0 ? getGroupedSources(msg.sources) : []
+          // Strip any inline "Source: ..." lines from the answer for a clean academic reading experience
+          const { cleanText, extractedSources } = stripInlineSources(msg.content)
+          const effectiveSources = mergeSources(msg.sources, extractedSources)
+          const hasSources = effectiveSources && effectiveSources.length > 0
+          const isSourcesOpen = Boolean(openSources[msg.id])
+
+          const isSaved =
+            savedNotes.some((n) => n.messageId === msg.id || n.id === msg.id) ||
+            Boolean(savedMap[msg.id])
 
           return (
             <motion.div
@@ -105,23 +108,21 @@ export function ChatView({
               className="flex items-start gap-3.5 sm:gap-4"
             >
               {/* Syllabix Assistant Avatar */}
-              <div className="grid size-9 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#ffe5df] to-[#fdeae6] text-[#e17863] shadow-xs">
+              <div className="grid size-9 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#f1edfe] to-[#e4dcfc] text-[#7763d9] shadow-xs">
                 <Sparkles className="size-4" />
               </div>
 
               {/* Main Study Note Answer Card */}
               <div className="flex-1 max-w-3xl">
-                <div className="rounded-2xl border border-[#ebe7f4] bg-white p-5 sm:p-7 shadow-xs transition-all hover:border-[#dfd7f2]">
+                <div className="rounded-2xl border border-[#ece7f6] bg-white p-5 sm:p-7 shadow-xs transition-all hover:border-[#ded5f2]">
                   {/* Clean Answer Header */}
-                  <div className="mb-4 flex items-center justify-between border-b border-[#f2edf9] pb-3">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-[#f2edf9] pb-3.5">
                     <div className="flex items-center gap-2">
-                      <div className="flex size-5 items-center justify-center rounded-md bg-gradient-to-br from-[#7763d9] to-[#ee8a7a] text-white shadow-2xs">
-                        <Sparkles className="size-3" />
+                      <div className="inline-flex items-center gap-1.5 rounded-lg border border-[#e5dcfa] bg-[#f8f5fe] px-2.5 py-1 text-xs font-semibold text-[#6853cc]">
+                        <BookOpen className="size-3.5 text-[#7763d9]" />
+                        <span>From Your Syllabus</span>
                       </div>
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#7763d9]">
-                        AI Answer
-                      </span>
-                      <span className="hidden sm:inline-block rounded-full bg-[#f3effe] px-2 py-0.5 text-[10px] font-semibold text-[#6853cc]">
+                      <span className="hidden sm:inline-block rounded-full bg-[#f3effe] px-2 py-0.5 text-[10px] font-medium text-[#736a93]">
                         Study Note
                       </span>
                     </div>
@@ -131,120 +132,64 @@ export function ChatView({
                     </span>
                   </div>
 
-                  {/* Formatted Academic Answer Content */}
-                  <div className={`text-[#383152] ${textSizeClass}`}>
-                    <FormattedMessage content={msg.content} />
+                  {/* Formatted Academic Answer Content (Clean text, uninterrupted by citation lines) */}
+                  <div className={`text-[#342d4d] ${textSizeClass}`}>
+                    <FormattedMessage content={cleanText} />
                   </div>
 
-                  {/* Grounded Source References */}
-                  {groupedSources.length > 0 && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.15, duration: 0.35 }}
-                      className="mt-6 border-t border-[#f0ebf8] pt-4"
-                    >
-                      <div className="mb-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold uppercase tracking-wider text-[#3d3460] flex items-center gap-1.5">
-                            <BookOpen className="size-3.5 text-[#7763d9]" /> Sources
-                          </span>
-                          <span className="rounded-full bg-[#f1edfe] px-2 py-0.5 text-[10px] font-semibold text-[#7763d9]">
-                            {msg.sources!.length} {msg.sources!.length === 1 ? 'citation' : 'citations'}
-                          </span>
-                        </div>
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#2d9b75] bg-[#e6f8f1] px-2.5 py-0.5 rounded-full">
-                          <Check className="size-3" /> Grounded in Syllabus
-                        </span>
-                      </div>
-
-                      <div className="flex flex-col gap-2.5">
-                        {groupedSources.map((group, i) => (
-                          <div
-                            key={i}
-                            className="rounded-xl border border-[#ebe4f7] bg-[#fbf9fe] p-3.5 text-xs transition hover:border-[#cfc3f5] hover:bg-white shadow-2xs"
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <div className="flex items-center gap-2.5">
-                                <span className="flex size-7 items-center justify-center rounded-lg bg-[#eee9ff] text-[#7763d9]">
-                                  <FileText className="size-4" />
-                                </span>
-                                <div>
-                                  <p className="font-bold text-[#2a2346] text-xs sm:text-[13px]">
-                                    {group.docName}
-                                  </p>
-                                  <div className="mt-1 flex flex-wrap gap-1.5">
-                                    {group.items.map((src, idx) => (
-                                      <button
-                                        key={idx}
-                                        onClick={() => onViewSource(src)}
-                                        className="inline-flex items-center gap-1 rounded-md border border-[#e5dcfa] bg-white px-2 py-0.5 text-[10px] font-semibold text-[#6853cc] hover:bg-[#eee9ff] transition"
-                                        title="Click to view extracted context"
-                                      >
-                                        <span>{src.page}</span>
-                                        <ExternalLink className="size-2.5" />
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <button
-                                onClick={() => onViewSource(group.items[0])}
-                                className="inline-flex items-center gap-1 rounded-lg border border-[#e8e2f4] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#7763d9] hover:bg-[#f3effe] transition shadow-2xs"
-                              >
-                                <span>View extract</span>
-                                <ExternalLink className="size-3" />
-                              </button>
-                            </div>
-
-                            {/* Snippet preview */}
-                            {group.items[0].snippet && (
-                              <p className="mt-2.5 text-[11px] text-[#6d6688] line-clamp-2 border-t border-[#f0eaf8] pt-2 italic">
-                                “{group.items[0].snippet}”
-                              </p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* Additional AI Knowledge Card */}
+                  {/* Additional AI Knowledge / Supplementary Insights Card */}
                   {msg.additionalKnowledge && (
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.25, duration: 0.35 }}
-                      className="mt-4 rounded-xl border border-[#fedecb] bg-gradient-to-br from-[#fffbf8] to-[#fff6f0] p-3.5 text-xs text-[#5c4a3e]"
+                      transition={{ delay: 0.15, duration: 0.35 }}
+                      className="mt-5 rounded-2xl border border-[#e9e1f7] bg-gradient-to-br from-[#faf8fe] via-[#f9f6fd] to-[#f4effc] border-l-[4px] border-l-[#7763d9] p-4 sm:p-5 shadow-2xs"
                     >
-                      <div className="mb-1 flex items-center gap-1.5 font-bold text-[#d9674f]">
-                        <Lightbulb className="size-3.5" />
-                        <span>Additional AI Knowledge & Synthesis</span>
+                      <div className="mb-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="flex size-6 items-center justify-center rounded-lg bg-[#eee9ff] text-[#7763d9] shadow-2xs">
+                            <Sparkles className="size-3.5" />
+                          </div>
+                          <h4 className="text-xs sm:text-[13px] font-bold text-[#44386e] tracking-tight">
+                            Additional AI Insights
+                          </h4>
+                          <span className="rounded-full bg-[#eee9ff] px-2 py-0.5 text-[10px] font-semibold text-[#6853cc]">
+                            Supplementary
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-medium text-[#9a91b4] hidden sm:inline">
+                          Beyond Syllabus
+                        </span>
                       </div>
-                      <div className="leading-relaxed whitespace-pre-line text-[#6a5649]">
-                        {msg.additionalKnowledge}
+
+                      <div className="text-xs sm:text-[13px] text-[#473e65] leading-relaxed">
+                        <FormattedMessage
+                          content={msg.additionalKnowledge}
+                          variant="insights"
+                        />
                       </div>
                     </motion.div>
                   )}
 
-                  {/* Action Toolbar: Copy, Regenerate, Like */}
+                  {/* Action Toolbar: Copy, Regenerate, View Sources, Save note */}
                   <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-[#f2edf9] pt-3.5 text-xs">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {/* Copy Button */}
                       <button
-                        onClick={() => handleCopy(msg.id, msg.content)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#e8e2f4] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#5a5276] shadow-2xs transition hover:bg-[#f6f2fd] hover:text-[#7763d9] hover:border-[#cfc3f5]"
-                        title="Copy answer to clipboard"
+                        onClick={() => handleCopy(msg.id, cleanText)}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#e8e2f4] bg-white px-3 text-xs font-medium text-[#5a5276] shadow-2xs transition hover:bg-[#f6f2fd] hover:text-[#7763d9] hover:border-[#cfc3f5] active:scale-[0.98]"
+                        title="Copy clean answer to clipboard"
                       >
                         {copiedId === msg.id ? (
                           <>
                             <Check className="size-3.5 text-[#2d9b75]" />
-                            <span className="text-[#2d9b75] font-semibold">Copied!</span>
+                            <span className="text-[#2d9b75] font-semibold">
+                              Copied!
+                            </span>
                           </>
                         ) : (
                           <>
-                            <Copy className="size-3.5" />
+                            <Copy className="size-3.5 text-[#736c8d]" />
                             <span>Copy answer</span>
                           </>
                         )}
@@ -254,32 +199,98 @@ export function ChatView({
                       <button
                         onClick={onRegenerate}
                         disabled={isThinking}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#e8e2f4] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#5a5276] shadow-2xs transition hover:bg-[#f6f2fd] hover:text-[#7763d9] hover:border-[#cfc3f5] disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#e8e2f4] bg-white px-3 text-xs font-medium text-[#5a5276] shadow-2xs transition hover:bg-[#f6f2fd] hover:text-[#7763d9] hover:border-[#cfc3f5] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Regenerate this answer using updated context"
                       >
-                        <RotateCw
-                          className={`size-3.5 ${isThinking ? 'animate-spin' : ''}`}
+                        <RotateCcw
+                          className={`size-3.5 text-[#736c8d] ${
+                            isThinking ? 'animate-spin' : ''
+                          }`}
                         />
                         <span>Regenerate</span>
                       </button>
+
+                      {/* On-Demand View Sources Button (Displayed only when sources are available) */}
+                      {hasSources && (
+                        <button
+                          onClick={() => toggleSources(msg.id)}
+                          className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition active:scale-[0.98] ${
+                            isSourcesOpen
+                              ? 'border-[#7763d9] bg-[#f2effd] text-[#6555be] font-semibold shadow-2xs'
+                              : 'border-[#e8e2f4] bg-white text-[#5a5276] hover:bg-[#f6f2fd] hover:text-[#7763d9] hover:border-[#cfc3f5]'
+                          }`}
+                          title={
+                            isSourcesOpen
+                              ? 'Hide grounded syllabus sources'
+                              : 'View grounded syllabus sources'
+                          }
+                        >
+                          <FileText
+                            className={`size-3.5 ${
+                              isSourcesOpen ? 'text-[#7763d9]' : 'text-[#736c8d]'
+                            }`}
+                          />
+                          <span>View Sources</span>
+                          <ChevronDown
+                            className={`size-3 text-[#89849e] transition-transform duration-200 ${
+                              isSourcesOpen ? 'rotate-180' : ''
+                            }`}
+                          />
+                        </button>
+                      )}
                     </div>
 
-                    {/* Helpful Button */}
+                    {/* Save Note Button */}
                     <button
-                      onClick={() => toggleLike(msg.id)}
-                      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition ${
-                        likedMap[msg.id]
-                          ? 'border-[#7763d9] bg-[#f2effd] text-[#7763d9]'
-                          : 'border-[#e8e2f4] bg-white text-[#6e6888] hover:bg-[#f6f2fd]'
+                      onClick={() => {
+                        if (onSaveNote) {
+                          onSaveNote(msg, cleanText, effectiveSources)
+                        } else {
+                          toggleSaveFallback(msg.id)
+                        }
+                      }}
+                      className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition active:scale-[0.98] ${
+                        isSaved
+                          ? 'border-[#7763d9] bg-[#f2effd] text-[#7763d9] font-semibold'
+                          : 'border-[#e8e2f4] bg-white text-[#6e6888] hover:bg-[#f6f2fd] hover:text-[#7763d9] hover:border-[#cfc3f5]'
                       }`}
-                      title={likedMap[msg.id] ? 'Marked as helpful' : 'Mark as helpful for exam revision'}
+                      title={
+                        isSaved
+                          ? 'Saved to study notes'
+                          : 'Save note for exam revision'
+                      }
                     >
-                      <ThumbsUp className="size-3.5" />
-                      <span className="hidden sm:inline">
-                        {likedMap[msg.id] ? 'Helpful' : 'Save note'}
+                      <Bookmark
+                        className={`size-3.5 ${
+                          isSaved
+                            ? 'fill-[#7763d9] text-[#7763d9]'
+                            : 'text-[#736c8d]'
+                        }`}
+                      />
+                      <span>
+                        {isSaved ? 'Saved note' : 'Save note'}
                       </span>
                     </button>
                   </div>
+
+                  {/* Expandable Grounded Source References Panel (Hidden by default, shown on demand) */}
+                  <AnimatePresence>
+                    {isSourcesOpen && hasSources && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                        animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+                        exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                        transition={{ duration: 0.28, ease: 'easeOut' }}
+                        className="overflow-hidden"
+                      >
+                        <SourceViewer
+                          sources={effectiveSources}
+                          onViewSource={onViewSource}
+                          variant="chat"
+                        />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
             </motion.div>
@@ -287,7 +298,7 @@ export function ChatView({
         })}
       </AnimatePresence>
 
-      {/* AI Thinking Animation */}
+      {/* AI Thinking Animation with Selected Theme */}
       <AnimatePresence>
         {isThinking && (
           <motion.div
@@ -297,7 +308,7 @@ export function ChatView({
             exit={{ opacity: 0, y: -10, transition: { duration: 0.2 } }}
             transition={{ duration: 0.3 }}
           >
-            <ThinkingIndicator />
+            <ThinkingIndicator animationTheme={loadingAnimation} />
           </motion.div>
         )}
       </AnimatePresence>

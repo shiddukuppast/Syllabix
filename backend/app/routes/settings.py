@@ -8,6 +8,16 @@ settings = SettingsSchema()
 
 @router.get("")
 async def get_settings() -> SettingsSchema:
+    try:
+        from app.database.mongodb import database
+
+        if database is not None:
+            doc = await database.settings.find_one({"_id": "user_settings"})
+            if doc:
+                doc.pop("_id", None)
+                return SettingsSchema(**doc)
+    except Exception:
+        pass
     return settings
 
 
@@ -15,5 +25,15 @@ async def get_settings() -> SettingsSchema:
 async def update_settings(update: SettingsSchema) -> SettingsSchema:
     global settings
     settings = update
-    return settings
+    try:
+        from app.database.mongodb import database
 
+        if database is not None:
+            await database.settings.update_one(
+                {"_id": "user_settings"},
+                {"$set": update.model_dump()},
+                upsert=True,
+            )
+    except Exception:
+        pass
+    return settings

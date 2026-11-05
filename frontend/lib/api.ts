@@ -12,6 +12,25 @@ export type BackendHealth = {
   status: string
 }
 
+export type AuthStatusResponse = {
+  authenticated: boolean
+  pin_configured: boolean
+  auto_lock_minutes: number
+  locked_out: boolean
+  lockout_remaining_seconds: number
+}
+
+export type AuthVerifyResponse = {
+  success: boolean
+  message: string
+  auto_lock_minutes: number
+}
+
+export type AuthLockResponse = {
+  success: boolean
+  message: string
+}
+
 export type ChatApiResponse = {
   conversation_id: string
   message_id: string
@@ -32,11 +51,14 @@ export type ChatApiResponse = {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(apiUrl(path), {
     ...init,
+    credentials: 'include',
     headers: { ...(init?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...init?.headers },
   })
   if (!response.ok) {
     const body = await response.json().catch(() => null)
-    throw new Error(body?.detail || `Request failed (${response.status})`)
+    const err = new Error(body?.detail || `Request failed (${response.status})`)
+    ;(err as any).status = response.status
+    throw err
   }
   return response.json()
 }
@@ -106,6 +128,7 @@ export const api = {
     new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest()
       xhr.open('POST', apiUrl('/documents/upload'))
+      xhr.withCredentials = true
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100))
       }
@@ -143,5 +166,16 @@ export const api = {
   updateSettings: (settings: UserSettings) => request<Record<string, unknown>>('/settings', { method: 'PATCH', body: JSON.stringify({
     reading_font_size: settings.readingFontSize, default_mode: settings.defaultMode, answer_detail: settings.answerDetail,
     exam_preparation_focus: settings.examPreparationFocus, study_reminders: settings.studyReminders, high_contrast_code: settings.highContrastCode,
+    loading_animation: settings.loadingAnimation,
   }) }),
+  getAuthStatus: () => request<AuthStatusResponse>('/auth/status'),
+  verifyPin: (pin: string) =>
+    request<AuthVerifyResponse>('/auth/verify', {
+      method: 'POST',
+      body: JSON.stringify({ pin }),
+    }),
+  lockWorkspace: () =>
+    request<AuthLockResponse>('/auth/lock', {
+      method: 'POST',
+    }),
 }

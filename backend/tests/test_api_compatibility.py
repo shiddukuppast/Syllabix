@@ -20,6 +20,7 @@ def test_client(monkeypatch):
     mock_db = MagicMock()
     mock_db.conversations.find_one = AsyncMock(return_value=None)
     mock_db.conversations.replace_one = AsyncMock()
+    mock_db.documents.count_documents = AsyncMock(return_value=1)
 
     monkeypatch.setattr("app.routes.chat.get_database", lambda: mock_db)
 

@@ -10,4 +10,4 @@ class SettingsSchema(BaseModel):
     exam_preparation_focus: bool = True
     study_reminders: bool = True
     high_contrast_code: bool = False
-
+    loading_animation: Literal["couple", "penguin", "warrior"] = "couple"

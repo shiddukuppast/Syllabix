@@ -36,6 +36,13 @@ async def ensure_collection_and_payload_index(client: AsyncQdrantClient | None =
             field_schema=models.PayloadSchemaType.KEYWORD,
             wait=True,
         )
+    if "chunk_index" not in payload_schema:
+        await client.create_payload_index(
+            collection_name=COLLECTION_NAME,
+            field_name="chunk_index",
+            field_schema=models.PayloadSchemaType.INTEGER,
+            wait=True,
+        )
 
 
 async def connect_qdrant() -> None:

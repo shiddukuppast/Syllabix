@@ -27,10 +27,18 @@ class Settings(BaseSettings):
     max_upload_size_mb: int = 25
     chunk_size_tokens: int = 700
     chunk_overlap_tokens: int = 120
-    retrieval_limit: int = 5
+    retrieval_limit: int = 8
     retrieval_score_threshold: float = 0.25
+    app_access_pin: str | None = None
+    app_session_secret: str = "syllabix_default_session_secret_change_in_production"
+    app_auto_lock_minutes: int = 5
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    model_config = SettingsConfigDict(
+        env_file=(BACKEND_DIRECTORY / ".env", ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
 
 @lru_cache

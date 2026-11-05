@@ -245,7 +245,7 @@ async def test_question_type_7_insufficient_context_refusal():
     mock_client = MagicMock()
     mock_client.chat.completions.create = AsyncMock(
         return_value=make_mock_groq_response(
-            "The provided syllabus materials do not contain sufficient information to answer this question. "
+            "The provided syllabus materials contain insufficient information to answer this question. "
             "The retrieved course materials only discuss Database Management Systems and Relational Algebra, "
             "and do not cover Quantum Entanglement or Quantum Computing principles."
         )

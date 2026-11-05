@@ -1,5 +1,7 @@
 export type StudyMode = 'Syllabus + AI' | 'Strict Syllabus'
 
+export type LoadingAnimationTheme = 'couple' | 'penguin' | 'warrior'
+
 export interface SourceReference {
   docName: string
   page: string | number
@@ -49,4 +51,16 @@ export interface UserSettings {
   examPreparationFocus: boolean
   studyReminders: boolean
   highContrastCode: boolean
+  loadingAnimation: LoadingAnimationTheme
+}
+
+export interface SavedNote {
+  id: string
+  messageId: string
+  conversationId?: string
+  question?: string
+  content: string
+  sources: SourceReference[]
+  additionalKnowledge?: string
+  createdAt: string
 }
