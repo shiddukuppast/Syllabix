@@ -574,21 +574,7 @@ When a document is deleted via `DELETE /api/documents/{id}`:
 5. **DOM Protection on Lock**:
    - When locked (either manually or after 5 minutes of inactivity), the frontend unmounts all chat views, document lists, and study notes from the React DOM tree, rendering only the `<PinEntryScreen />`.
 
----
 
-## Screenshots
-
-<!-- Add your application screenshots to docs/screenshots/ and update the links below -->
-
-| PIN Entry Screen | Dashboard Arena |
-| :---: | :---: |
-| ![PIN Screen Placeholder](docs/screenshots/pin-entry.png) | ![Dashboard Placeholder](docs/screenshots/dashboard.png) |
-
-| Document Ingestion & Citations | Custom Loading Animations |
-| :---: | :---: |
-| ![Document Citations Placeholder](docs/screenshots/citations.png) | ![Animation Settings Placeholder](docs/screenshots/animations.png) |
-
----
 
 ## Known Limitations
 
